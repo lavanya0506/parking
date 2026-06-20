@@ -343,12 +343,19 @@ with tabs[3]:
         else:
             r, p = 0, 1
         fig = px.scatter(merged, x="violations", y="incidents",
-                         text="police_station", trendline="ols",
-                         title=f"Parking Violations vs Traffic Incidents (r = {r:.2f}, p = {p:.4f})",
+                         text="police_station",
+                         title=f"Parking Violations vs Traffic Incidents (Pearson r = {r:.2f}, p = {p:.4f})",
                          labels={"violations":"Parking Violations","incidents":"Traffic Incidents"})
-        fig.update_traces(textposition="top right", marker_size=8)
+        # manual trendline via numpy
+        if len(merged) > 2:
+            m_slope, m_intercept = np.polyfit(merged["violations"], merged["incidents"], 1)
+            x_range = np.linspace(merged["violations"].min(), merged["violations"].max(), 100)
+            fig.add_trace(go.Scatter(x=x_range, y=m_slope*x_range+m_intercept,
+                                     mode="lines", name="trend",
+                                     line=dict(color="#f5a623", width=2, dash="dash")))
+        fig.update_traces(textposition="top right", marker_size=8, selector=dict(mode="markers+text"))
         fig.update_layout(plot_bgcolor="#0f0f23", paper_bgcolor="#0f0f23",
-                          font_color="white", height=420)
+                          font_color="white", height=420, showlegend=False)
         st.plotly_chart(fig, use_container_width=True)
 
     with c2:
