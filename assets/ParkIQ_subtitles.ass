@@ -1,0 +1,26 @@
+[Script Info]
+Title: ParkIQ Demo Subtitles
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+Collisions: Normal
+Timer: 100.0000
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,36,&H00FFFFFF,&H000000FF,&H00000000,&H99000000,-1,0,0,0,100,100,0,0,1,2.5,1.5,2,80,80,60,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.30,0:00:09.41,Default,,0,0,0,,ParkIQ — AI-powered parking enforcement intelligence,\Nbuilt on 115,000 real Bengaluru traffic police records.
+Dialogue: 0,0:00:10.51,0:00:20.88,Default,,0,0,0,,Bengaluru loses 60 minutes daily per commuter.\NOfficers are deployed reactively with no visibility into where violations peak.
+Dialogue: 0,0:00:21.08,0:00:34.48,Default,,0,0,0,,Two real datasets: 298,450 BTP violation records\Nand 8,173 ASTRAM traffic incidents — both covering the same 54 police stations.
+Dialogue: 0,0:00:34.67,0:00:44.28,Default,,0,0,0,,The live heatmap plots 20,000 GPS-verified violation points\Nacross Bengaluru, weighted by vehicle severity from scooter to truck.
+Dialogue: 0,0:00:44.47,0:00:57.12,Default,,0,0,0,,Top hotspot: Safina Plaza Junction with 5,882 violations.\NThe top 5 junctions account for 25% of all named-junction violations.
+Dialogue: 0,0:00:57.32,0:01:08.17,Default,,0,0,0,,Peak enforcement window: 10 AM IST.\NMondays through Fridays see highest counts. Night drives spike between 2–5 AM.
+Dialogue: 0,0:01:08.37,0:01:17.32,Default,,0,0,0,,Cross-correlating with ASTRAM incidents:\Nstations with active enforcement show fewer traffic events.
+Dialogue: 0,0:01:17.52,0:01:27.29,Default,,0,0,0,,10 officers assigned to priority zones across 3 shifts.\N4,706 violations addressable per deployment cycle.
+Dialogue: 0,0:01:27.49,0:01:36.95,Default,,0,0,0,,Cars are the top offender type.\NThe vehicle-by-hour heatmap reveals when each type causes the most blockages.
+Dialogue: 0,0:01:37.15,0:01:47.11,Default,,0,0,0,,Priority score = 40% frequency\N+ 30% peak-hour + 20% incident correlation + 10% severity.
+Dialogue: 0,0:01:47.31,0:01:57.00,Default,,0,0,0,,From raw CSV data to deployable patrol schedules —\Na complete intelligence pipeline, real-time ready for BTP.
+Dialogue: 0,0:01:57.20,0:02:08.15,Default,,0,0,0,,ParkIQ: making Bengaluru's roads smarter, one junction at a time.\NGridlock Hackathon 2.0 · Problem Statement 1.

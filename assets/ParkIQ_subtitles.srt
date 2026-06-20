@@ -1,0 +1,59 @@
+1
+00:00:00,300 --> 00:00:09,420
+ParkIQ — AI-powered parking enforcement intelligence,
+built on 115,000 real Bengaluru traffic police records.
+
+2
+00:00:10,520 --> 00:00:20,888
+Bengaluru loses 60 minutes daily per commuter.
+Officers are deployed reactively with no visibility into where violations peak.
+
+3
+00:00:21,088 --> 00:00:34,480
+Two real datasets: 298,450 BTP violation records
+and 8,173 ASTRAM traffic incidents — both covering the same 54 police stations.
+
+4
+00:00:34,680 --> 00:00:44,280
+The live heatmap plots 20,000 GPS-verified violation points
+across Bengaluru, weighted by vehicle severity from scooter to truck.
+
+5
+00:00:44,480 --> 00:00:57,128
+Top hotspot: Safina Plaza Junction with 5,882 violations.
+The top 5 junctions account for 25% of all named-junction violations.
+
+6
+00:00:57,328 --> 00:01:08,176
+Peak enforcement window: 10 AM IST.
+Mondays through Fridays see highest counts. Night drives spike between 2–5 AM.
+
+7
+00:01:08,376 --> 00:01:17,328
+Cross-correlating with ASTRAM incidents:
+stations with active enforcement show fewer traffic events.
+
+8
+00:01:17,528 --> 00:01:27,296
+10 officers assigned to priority zones across 3 shifts.
+4,706 violations addressable per deployment cycle.
+
+9
+00:01:27,496 --> 00:01:36,952
+Cars are the top offender type.
+The vehicle-by-hour heatmap reveals when each type causes the most blockages.
+
+10
+00:01:37,152 --> 00:01:47,112
+Priority score = 40% frequency
++ 30% peak-hour + 20% incident correlation + 10% severity.
+
+11
+00:01:47,312 --> 00:01:57,008
+From raw CSV data to deployable patrol schedules —
+a complete intelligence pipeline, real-time ready for BTP.
+
+12
+00:01:57,208 --> 00:02:08,152
+ParkIQ: making Bengaluru's roads smarter, one junction at a time.
+Gridlock Hackathon 2.0 · Problem Statement 1.
