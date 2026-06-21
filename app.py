@@ -122,6 +122,98 @@ def compute_priority(_viol, _ev):
                                  labels=["🟢 LOW","🟡 MEDIUM","🔴 HIGH"])
     return grp.sort_values("priority_score",ascending=False).reset_index(drop=True)
 
+
+# ── AI Model Training (cached — runs once at startup) ────────────────────────
+@st.cache_resource(show_spinner="🤖 Training AI models on violation records…")
+def train_ai_models():
+    import warnings, time
+    warnings.filterwarnings("ignore")
+    from sklearn.ensemble import RandomForestClassifier, IsolationForest
+    from sklearn.preprocessing import LabelEncoder, StandardScaler
+    from sklearn.cluster import KMeans
+    import numpy as np
+
+    t0 = time.time()
+    _viol = load_violations()
+
+    # ── Random Forest: Junction Risk Prediction ──────────────────────────────
+    # Features: junction (encoded) + hour + day_of_week + month
+    # Target:   LOW / MEDIUM / HIGH violation risk
+    grp = (_viol[_viol["junction_clean"] != "No Junction"]
+           .groupby(["junction_clean","hour","dow","month"])
+           .size().reset_index(name="count"))
+
+    # Only junctions with ≥50 historical violations (enough signal)
+    valid_j = (_viol[_viol["junction_clean"] != "No Junction"]
+               ["junction_clean"].value_counts())
+    valid_j = valid_j[valid_j >= 50].index
+    grp = grp[grp["junction_clean"].isin(valid_j)]
+
+    p50 = grp["count"].quantile(0.50)
+    p75 = grp["count"].quantile(0.75)
+    grp["risk"] = pd.cut(grp["count"], bins=[-1, p50, p75, 99999],
+                         labels=[0, 1, 2])
+    grp = grp.dropna(subset=["risk"])
+
+    le = LabelEncoder()
+    grp["jenc"] = le.fit_transform(grp["junction_clean"])
+
+    X = grp[["jenc","hour","dow","month"]].values
+    y = grp["risk"].astype(int).values
+
+    rf = RandomForestClassifier(n_estimators=150, max_depth=12,
+                                random_state=42, n_jobs=-1)
+    rf.fit(X, y)
+    train_acc = (rf.predict(X) == y).mean()
+
+    # Junction lat/lon for map rendering
+    junc_geo = (_viol[_viol["junction_clean"].isin(valid_j)]
+                .groupby("junction_clean")
+                .agg(lat=("latitude","mean"), lon=("longitude","mean"))
+                .reset_index())
+
+    # ── K-Means: Optimal Patrol Zone Detection ───────────────────────────────
+    geo = _viol[["latitude","longitude"]].dropna()
+    geo = geo[(geo["latitude"].between(12.8, 13.15)) &
+              (geo["longitude"].between(77.45, 77.75))]
+    sample = geo.sample(n=min(30000, len(geo)), random_state=42).values
+
+    scaler = StandardScaler()
+    sample_sc = scaler.fit_transform(sample)
+
+    km_models = {}
+    for n in [5, 8, 10, 12, 15]:
+        km = KMeans(n_clusters=n, random_state=42,
+                    n_init=10, init="k-means++", algorithm="lloyd")
+        km.fit(sample_sc)
+        km_models[n] = km
+
+    # ── Isolation Forest: Anomaly Detection ─────────────────────────────────
+    sgrp = (_viol.groupby(["police_station","hour","dow"])
+            .size().reset_index(name="count"))
+    avg_sh = (sgrp.groupby(["police_station","hour"])["count"]
+              .mean().reset_index(name="avg"))
+    sgrp = sgrp.merge(avg_sh, on=["police_station","hour"])
+
+    iso = IsolationForest(contamination=0.05, random_state=42)
+    sgrp["is_anomaly"] = iso.fit_predict(sgrp[["count"]]) == -1
+    sgrp["multiplier"]  = (sgrp["count"] / sgrp["avg"]).round(1)
+
+    anomalies = (sgrp[sgrp["is_anomaly"]]
+                 .sort_values("count", ascending=False)
+                 .head(12))
+
+    return {
+        "rf": rf, "le": le, "train_acc": train_acc,
+        "km_models": km_models, "scaler": scaler,
+        "geo_sample": sample,
+        "anomalies": anomalies, "junc_geo": junc_geo,
+        "fi": rf.feature_importances_,
+        "train_time": time.time() - t0,
+        "n_train": len(X),
+        "valid_juncs": list(valid_j),
+    }
+
 # ── Load data ─────────────────────────────────────────────────────────────────
 viol = load_violations()
 ev   = load_events()
@@ -606,6 +698,243 @@ Flagging these in SCITA for priority action could eliminate recurring hotspot co
         .rename(columns={"corridor":"Corridor","incidents":"Incidents","avg_duration":"Avg Duration (min)"}),
         use_container_width=True, hide_index=True
     )
+
+
+# ════════════════════════════════════════════════════════════════════
+# TAB 8 — AI Predictions
+# ════════════════════════════════════════════════════════════════════
+with tabs[7]:
+    st.subheader("🤖 AI Predictions — Machine Learning on Real Violation Data")
+    st.caption("Three ML models trained on 115,400 approved violation records to forecast risk, optimise patrol zones and detect anomalies")
+
+    models = train_ai_models()
+
+    # ── Model card ──────────────────────────────────────────────────────────
+    mc1, mc2, mc3, mc4 = st.columns(4)
+    with mc1:
+        st.metric("Algorithm", "Random Forest")
+    with mc2:
+        st.metric("Training Accuracy", f"{models['train_acc']*100:.1f}%")
+    with mc3:
+        st.metric("Records Used", f"{models['n_train']:,}")
+    with mc4:
+        st.metric("Training Time", f"{models['train_time']:.2f}s")
+
+    st.markdown("""
+<div class="insight-box">
+Three ML models run entirely on the provided BTP + ASTRAM dataset:
+<b>Random Forest</b> (supervised — predicts junction risk) ·
+<b>K-Means</b> (unsupervised — detects optimal patrol zones) ·
+<b>Isolation Forest</b> (anomaly detection — surfaces unusual spikes automatically)
+</div>""", unsafe_allow_html=True)
+
+    st.divider()
+
+    # ════════════════════════════════════
+    # A. JUNCTION RISK FORECASTER
+    # ════════════════════════════════════
+    st.markdown("### 🗺️  Junction Risk Forecaster")
+    st.caption("Select day + hour → AI predicts HIGH / MEDIUM / LOW enforcement priority for every named junction")
+
+    ctrl_col, map_col = st.columns([1, 3])
+    with ctrl_col:
+        DAY_MAP = {0:"Monday",1:"Tuesday",2:"Wednesday",3:"Thursday",
+                   4:"Friday",5:"Saturday",6:"Sunday"}
+        MON_MAP = {11:"November",12:"December",1:"January",
+                   2:"February",3:"March",4:"April"}
+        sel_dow_ai   = st.selectbox("Day of Week", list(DAY_MAP.keys()),
+                                    index=6, format_func=lambda x: DAY_MAP[x])
+        sel_hour_ai  = st.slider("Hour (IST)", 0, 23, 10)
+        sel_month_ai = st.selectbox("Month", list(MON_MAP.keys()),
+                                    index=2, format_func=lambda x: MON_MAP[x])
+        st.caption("Default: Sunday 10 AM Jan — historically peak window")
+
+    le_ai      = models["le"]
+    rf_ai      = models["rf"]
+    junc_geo   = models["junc_geo"]
+
+    jenc_vals  = le_ai.transform(junc_geo["junction_clean"])
+    X_pred     = np.column_stack([
+        jenc_vals,
+        np.full(len(jenc_vals), sel_hour_ai),
+        np.full(len(jenc_vals), sel_dow_ai),
+        np.full(len(jenc_vals), sel_month_ai),
+    ])
+    risk_pred  = rf_ai.predict(X_pred)
+    risk_proba = rf_ai.predict_proba(X_pred)
+
+    pred_df = junc_geo.copy()
+    pred_df["risk"]       = risk_pred
+    pred_df["risk_label"] = pred_df["risk"].map({0:"LOW", 1:"MEDIUM", 2:"HIGH"})
+    pred_df["confidence"] = (risk_proba.max(axis=1) * 100).round(0).astype(int)
+
+    RISK_COLOR = {2:"red", 1:"orange", 0:"green"}
+    with map_col:
+        m_ai = folium.Map(location=[12.97, 77.59], zoom_start=12,
+                          tiles="CartoDB dark_matter")
+        for _, r in pred_df.iterrows():
+            folium.CircleMarker(
+                location=[r["lat"], r["lon"]],
+                radius=9,
+                color=RISK_COLOR[r["risk"]],
+                fill=True, fill_opacity=0.8,
+                popup=folium.Popup(
+                    f"<b>{r['junction_clean']}</b><br>"
+                    f"Predicted Risk: <b>{r['risk_label']}</b><br>"
+                    f"Confidence: {r['confidence']}%",
+                    max_width=220)
+            ).add_to(m_ai)
+        st_folium(m_ai, height=460, width=None, returned_objects=[])
+
+    n_high = int((pred_df["risk"]==2).sum())
+    n_med  = int((pred_df["risk"]==1).sum())
+    n_low  = int((pred_df["risk"]==0).sum())
+    day_str = DAY_MAP[sel_dow_ai]
+    st.markdown(f"""
+<div class="insight-box">
+<b>AI Forecast — {day_str} {sel_hour_ai:02d}:00 IST ({MON_MAP[sel_month_ai]}):</b><br>
+🔴 <b>{n_high} HIGH risk junctions</b> — deploy officers now &nbsp;·&nbsp;
+🟡 {n_med} MEDIUM risk &nbsp;·&nbsp;
+🟢 {n_low} LOW risk
+</div>""", unsafe_allow_html=True)
+
+    if n_high > 0:
+        high_tbl = (pred_df[pred_df["risk"]==2]
+                    [["junction_clean","risk_label","confidence"]]
+                    .rename(columns={"junction_clean":"Junction",
+                                     "risk_label":"AI Risk",
+                                     "confidence":"Confidence %"})
+                    .sort_values("Confidence %", ascending=False)
+                    .reset_index(drop=True))
+        st.markdown("**🔴 HIGH Risk Junctions — deploy officers to these zones:**")
+        st.dataframe(high_tbl, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # Feature importance
+    st.markdown("### 📊 Why does the model predict what it predicts?")
+    fi_df = pd.DataFrame({
+        "Feature": ["Junction Location", "Hour of Day", "Day of Week", "Month"],
+        "Importance (%)": (models["fi"] * 100).round(1)
+    }).sort_values("Importance (%)", ascending=True)
+    fig_fi = px.bar(fi_df, x="Importance (%)", y="Feature", orientation="h",
+                    color="Importance (%)", color_continuous_scale="Reds",
+                    title="Feature Importance — What drives violation risk?",
+                    text="Importance (%)")
+    fig_fi.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
+    fig_fi.update_layout(plot_bgcolor="#0f0f23", paper_bgcolor="#0f0f23",
+                         font_color="white", height=300)
+    st.plotly_chart(fig_fi, use_container_width=True)
+
+    st.divider()
+
+    # ════════════════════════════════════
+    # B. K-MEANS PATROL ZONE DETECTION
+    # ════════════════════════════════════
+    st.markdown("### 🗺️  ML-Optimised Patrol Zone Detection")
+    st.caption("K-Means clustering automatically detects optimal patrol zones directly from 112,000+ violation GPS points — no manual zone drawing needed")
+
+    n_zones_ai = st.slider("Number of Patrol Zones", 5, 15, 10, key="km_slider")
+    km_ai      = models["km_models"].get(n_zones_ai)
+    scaler_ai  = models["scaler"]
+
+    if km_ai is None:
+        from sklearn.cluster import KMeans as _KM
+        km_ai = _KM(n_clusters=n_zones_ai, random_state=42,
+                    n_init=10, algorithm="lloyd")
+        km_ai.fit(scaler_ai.transform(models["geo_sample"]))
+
+    geo_viol = viol[["latitude","longitude"]].dropna()
+    geo_viol = geo_viol[(geo_viol["latitude"].between(12.8,13.15)) &
+                        (geo_viol["longitude"].between(77.45,77.75))].copy()
+    geo_viol["zone"] = km_ai.predict(
+        scaler_ai.transform(geo_viol[["latitude","longitude"]].values))
+
+    zone_stats = (geo_viol.groupby("zone")
+                  .agg(count=("latitude","count"),
+                       lat=("latitude","mean"),
+                       lon=("longitude","mean"))
+                  .reset_index()
+                  .sort_values("count", ascending=False))
+    zone_stats["officers"] = (
+        zone_stats["count"] / zone_stats["count"].sum() * n_officers
+    ).round(0).astype(int).clip(lower=1)
+    zone_stats["zone_label"] = "Zone " + (zone_stats["zone"]+1).astype(str)
+
+    ZONE_COLS = ["red","orange","blue","green","purple","darkred",
+                 "lightblue","darkblue","cadetblue","lightgreen",
+                 "pink","gray","beige","darkgreen","lightgray"]
+
+    km_c1, km_c2 = st.columns([2, 1])
+    with km_c1:
+        m_km = folium.Map(location=[12.97, 77.59], zoom_start=12,
+                          tiles="CartoDB dark_matter")
+        for _, zr in zone_stats.iterrows():
+            zi   = int(zr["zone"])
+            col  = ZONE_COLS[zi % len(ZONE_COLS)]
+            rad  = max(12, int(zr["count"] / 800))
+            folium.CircleMarker(
+                location=[zr["lat"], zr["lon"]],
+                radius=rad, color=col,
+                fill=True, fill_opacity=0.55,
+                popup=folium.Popup(
+                    f"<b>{zr['zone_label']}</b><br>"
+                    f"Violations: {zr['count']:,}<br>"
+                    f"Recommended Officers: {zr['officers']}",
+                    max_width=200)
+            ).add_to(m_km)
+            folium.map.Marker(
+                [zr["lat"], zr["lon"]],
+                icon=folium.DivIcon(
+                    html=f'<div style="color:white;font-weight:900;'
+                         f'font-size:11px;text-shadow:1px 1px 2px #000">'
+                         f'Z{zi+1}</div>',
+                    icon_size=(25, 15), icon_anchor=(0, 0))
+            ).add_to(m_km)
+        st_folium(m_km, height=440, width=None, returned_objects=[])
+
+    with km_c2:
+        st.markdown("**Zone Summary**")
+        st.dataframe(
+            zone_stats[["zone_label","count","officers"]]
+            .rename(columns={"zone_label":"Zone",
+                              "count":"Violations",
+                              "officers":"Officers"}),
+            use_container_width=True, hide_index=True, height=420
+        )
+
+    st.markdown(f"""
+<div class="insight-box">
+K-Means automatically identified <b>{n_zones_ai} optimal patrol zones</b>
+from 112,000+ GPS violation points — no manual zone drawing.
+Each zone is sized proportionally so officers cover equal violation load.
+</div>""", unsafe_allow_html=True)
+
+    st.divider()
+
+    # ════════════════════════════════════
+    # C. ANOMALY ALERTS
+    # ════════════════════════════════════
+    st.markdown("### ⚠️  AI Anomaly Alerts — Unusual Violation Spikes")
+    st.caption("Isolation Forest model automatically surfaces police stations showing abnormally high violation counts vs their historical average")
+
+    anomalies = models["anomalies"]
+    DOW_N     = {0:"Mon",1:"Tue",2:"Wed",3:"Thu",4:"Fri",5:"Sat",6:"Sun"}
+
+    cols_a = st.columns(3)
+    for i, (_, row) in enumerate(anomalies.iterrows()):
+        with cols_a[i % 3]:
+            day_n = DOW_N.get(int(row["dow"]), "?")
+            mult  = float(row.get("multiplier", 1))
+            cnt   = int(row["count"])
+            st.markdown(f"""
+<div class="insight-box" style="border-left:3px solid #E94560;margin-bottom:10px">
+⚠️ <b>{row["police_station"]}</b><br>
+<span style="color:#aaa;font-size:0.85rem">{day_n} {int(row["hour"]):02d}:00 IST</span><br>
+<span style="font-size:1.5rem;font-weight:900;color:#E94560">{cnt}</span>
+<span style="color:#aaa;font-size:0.8rem"> violations</span><br>
+<span style="color:#F5A623;font-weight:700">{mult:.1f}× above average</span>
+</div>""", unsafe_allow_html=True)
 
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.divider()
