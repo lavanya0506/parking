@@ -178,6 +178,7 @@ tabs = st.tabs([
     "📊 Impact Quantification",
     "🚓 Enforcement Optimizer",
     "🚗 Vehicle Intelligence",
+    "🔍 Deep Intelligence",
 ])
 
 # ════════════════════════════════════════════════════════════════════
@@ -497,6 +498,114 @@ with tabs[5]:
             "🚛 <b>Heavy vehicles</b> (<1%) have outsized congestion impact (3× weight)",
         ]:
             st.markdown(f'<div class="insight-box">{msg}</div>', unsafe_allow_html=True)
+
+
+# ════════════════════════════════════════════════════════════════════
+# TAB 7 — Deep Intelligence
+# ════════════════════════════════════════════════════════════════════
+with tabs[6]:
+    st.subheader("🔍 Deep Intelligence — Hidden Patterns in the Data")
+
+    # ── Repeat Offenders ──────────────────────────────────────────────────
+    st.markdown("### 🔁 Repeat Offenders")
+    st.caption("Vehicles that have violated multiple times — targeted enforcement on these prevents hundreds of violations")
+
+    repeat = (df["vehicle_number"].value_counts()
+              .reset_index().rename(columns={"vehicle_number":"Vehicle ID","count":"Total Violations"}))
+    repeat = repeat[repeat["Total Violations"] > 5].head(20)
+    vtype_map   = df.groupby("vehicle_number")["vehicle_type"].first()
+    station_map = df.groupby("vehicle_number")["police_station"].agg(lambda x: x.value_counts().index[0])
+    repeat["Vehicle Type"] = repeat["Vehicle ID"].map(vtype_map)
+    repeat["Top Station"]  = repeat["Vehicle ID"].map(station_map)
+
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        fig_r = px.bar(repeat.head(15), x="Vehicle ID", y="Total Violations",
+                       color="Total Violations", color_continuous_scale="Reds",
+                       title="Top 15 Repeat Offending Vehicles")
+        fig_r.update_layout(plot_bgcolor="#0f0f23", paper_bgcolor="#0f0f23",
+                            font_color="white", height=380, xaxis_tickangle=-30)
+        st.plotly_chart(fig_r, use_container_width=True)
+    with c2:
+        top_v      = int(repeat["Total Violations"].iloc[0])
+        total_rep  = int(repeat["Total Violations"].sum())
+        st.markdown(f"""
+<div class="insight-box">
+<b>Top offender: {top_v} violations in 6 months</b><br><br>
+Top 20 repeat vehicles: <b>{total_rep:,} total violations</b><br><br>
+Flagging these in SCITA for priority action could eliminate recurring hotspot congestion at source.
+</div>""", unsafe_allow_html=True)
+        st.dataframe(repeat[["Vehicle ID","Total Violations","Vehicle Type","Top Station"]].head(10),
+                     use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # ── Real Incident Duration ────────────────────────────────────────────────
+    st.markdown("### ⏱️ Real Congestion Impact — Measured from ASTRAM Data")
+    st.caption("Actual incident open-to-close duration — not estimates")
+
+    ev_dur = ev.copy()
+    ev_dur["start_t"]  = pd.to_datetime(ev_dur["start_datetime"],  utc=True, errors="coerce")
+    ev_dur["close_t"]  = pd.to_datetime(ev_dur["closed_datetime"], utc=True, errors="coerce")
+    ev_dur["duration_min"] = (ev_dur["close_t"] - ev_dur["start_t"]).dt.total_seconds() / 60
+    ev_dur = ev_dur[ev_dur["duration_min"].between(1, 600)]
+
+    c3, c4 = st.columns(2)
+    with c3:
+        dur_cause = (ev_dur.groupby("event_cause")["duration_min"]
+                     .agg(["mean","count"]).reset_index()
+                     .rename(columns={"mean":"Avg Duration (min)","count":"Events","event_cause":"Cause"}))
+        dur_cause = dur_cause.sort_values("Avg Duration (min)", ascending=False)
+        fig_d = px.bar(dur_cause, x="Cause", y="Avg Duration (min)",
+                       color="Avg Duration (min)", color_continuous_scale="Oranges",
+                       title="Average Road Blockage Duration by Incident Cause (minutes)",
+                       text=dur_cause["Avg Duration (min)"].round(0).astype(int))
+        fig_d.update_traces(textposition="outside")
+        fig_d.update_layout(plot_bgcolor="#0f0f23", paper_bgcolor="#0f0f23",
+                            font_color="white", height=420, xaxis_tickangle=-30)
+        st.plotly_chart(fig_d, use_container_width=True)
+    with c4:
+        avg_dur  = ev_dur["duration_min"].mean()
+        max_dur  = ev_dur["duration_min"].max()
+        hi_dur   = ev_dur[ev_dur["priority"]=="High"]["duration_min"].mean()
+        cong_dur = ev_dur[ev_dur["event_cause"]=="congestion"]["duration_min"].mean() if (ev_dur["event_cause"]=="congestion").any() else 0
+        for msg in [
+            f"Average incident duration: <b>{avg_dur:.0f} minutes</b> of road blockage",
+            f"High-priority incidents last <b>{hi_dur:.0f} min</b> on average",
+            f"Worst recorded blockage: <b>{max_dur:.0f} minutes</b> (~{max_dur/60:.1f} hours)",
+            f"Congestion events last <b>{cong_dur:.0f} min</b> on average",
+            "Reducing violations at top 5 junctions directly prevents the longest blockages",
+        ]:
+            st.markdown(f'<div class="insight-box">{msg}</div>', unsafe_allow_html=True)
+
+    st.divider()
+
+    # ── Corridor Impact ───────────────────────────────────────────────────────
+    st.markdown("### Road Corridor Congestion Impact")
+    st.caption("Which Bengaluru corridors see the most traffic incidents and longest blockages")
+
+    corr_df = (ev_dur.groupby("corridor")
+               .agg(incidents=("id","count"), avg_duration=("duration_min","mean"))
+               .reset_index()
+               .query("corridor != 'Non-corridor'")
+               .sort_values("incidents", ascending=False).head(12))
+    corr_df["Total Minutes Lost"] = (corr_df["incidents"] * corr_df["avg_duration"]).round(0).astype(int)
+
+    fig_c = px.scatter(corr_df, x="incidents", y="avg_duration",
+                       size="Total Minutes Lost", text="corridor",
+                       color="Total Minutes Lost", color_continuous_scale="Reds",
+                       title="Corridor Risk Matrix — Incident Count vs Average Duration",
+                       labels={"incidents":"Incidents","avg_duration":"Avg Duration (min)"})
+    fig_c.update_traces(textposition="top center")
+    fig_c.update_layout(plot_bgcolor="#0f0f23", paper_bgcolor="#0f0f23",
+                        font_color="white", height=450)
+    st.plotly_chart(fig_c, use_container_width=True)
+
+    st.dataframe(
+        corr_df[["corridor","incidents","avg_duration","Total Minutes Lost"]]
+        .rename(columns={"corridor":"Corridor","incidents":"Incidents","avg_duration":"Avg Duration (min)"}),
+        use_container_width=True, hide_index=True
+    )
 
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.divider()
