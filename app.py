@@ -15,6 +15,18 @@ import plotly.graph_objects as go
 import folium
 from streamlit_folium import st_folium
 from folium.plugins import HeatMap, MarkerCluster
+
+def _dim_attr(fmap):
+    """Minimise mandatory Leaflet attribution — keeps it legal, less distracting."""
+    fmap.get_root().html.add_child(folium.Element(
+        '<style>.leaflet-control-attribution{'
+        'font-size:8px!important;opacity:.28!important;'
+        'background:transparent!important;color:#777!important;'
+        'box-shadow:none!important;padding:1px 4px!important}'
+        '.leaflet-control-attribution a{color:#999!important}</style>'
+    ))
+    return fmap
+
 import ast
 
 # ── Page config ───────────────────────────────────────────────────────────────
@@ -322,6 +334,7 @@ with tabs[0]:
                     popup=f"{row['junction_clean']}<br>Score: {row['priority_score']:.2f}"
                 ).add_to(m)
 
+        _dim_attr(m)
         st_folium(m, height=550, width=None, returned_objects=[])
 
 # ════════════════════════════════════════════════════════════════════
@@ -527,6 +540,7 @@ with tabs[4]:
                 icon=folium.Icon(color=colors_by_shift.get(shift_type,"gray"),
                                  icon="user", prefix="fa")
             ).add_to(dm)
+        _dim_attr(dm)
         st_folium(dm, height=380, width=None, returned_objects=[])
 
     st.divider()
@@ -785,6 +799,7 @@ Three ML models run entirely on the provided BTP + ASTRAM dataset:
                     f"Confidence: {r['confidence']}%",
                     max_width=220)
             ).add_to(m_ai)
+        _dim_attr(m_ai)
         st_folium(m_ai, height=460, width=None, returned_objects=[])
 
     n_high = int((pred_df["risk"]==2).sum())
@@ -892,6 +907,7 @@ Three ML models run entirely on the provided BTP + ASTRAM dataset:
                          f'Z{zi+1}</div>',
                     icon_size=(25, 15), icon_anchor=(0, 0))
             ).add_to(m_km)
+        _dim_attr(m_km)
         st_folium(m_km, height=440, width=None, returned_objects=[])
 
     with km_c2:
