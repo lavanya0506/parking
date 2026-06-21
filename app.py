@@ -271,6 +271,7 @@ tabs = st.tabs([
     "🚓 Enforcement Optimizer",
     "🚗 Vehicle Intelligence",
     "🔍 Deep Intelligence",
+    "🤖 AI Predictions",
 ])
 
 # ════════════════════════════════════════════════════════════════════
