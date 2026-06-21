@@ -170,8 +170,15 @@ def train_ai_models():
     le = LabelEncoder()
     grp["jenc"] = le.fit_transform(grp["junction_clean"])
 
-    X = grp[["jenc","hour","dow","month"]].values
-    y = grp["risk"].astype(int).values
+    # dow and month are strings (day_name / month_name) — encode to int
+    dow_order = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+    mon_order = ["January","February","March","April","May","June",
+                 "July","August","September","October","November","December"]
+    grp["dow_n"]   = grp["dow"].map({d:i for i,d in enumerate(dow_order)}).fillna(0).astype(int)
+    grp["month_n"] = grp["month"].map({m:i+1 for i,m in enumerate(mon_order)}).fillna(1).astype(int)
+
+    X = grp[["jenc","hour","dow_n","month_n"]].to_numpy(dtype=float)
+    y = grp["risk"].cat.codes.to_numpy(dtype=int)
 
     rf = RandomForestClassifier(n_estimators=150, max_depth=12,
                                 random_state=42, n_jobs=-1)
