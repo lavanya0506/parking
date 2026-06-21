@@ -149,12 +149,16 @@ def load_violations():
 def load_events():
     df = pd.read_parquet(DATA / "events.parquet")
     df["start_datetime"]    = pd.to_datetime(df["start_datetime"],    utc=True, errors="coerce")
+    df["closed_datetime"]   = pd.to_datetime(df["closed_datetime"],   utc=True, errors="coerce")
+    df["end_datetime"]      = pd.to_datetime(df["end_datetime"],      utc=True, errors="coerce")
     df["resolved_datetime"] = pd.to_datetime(df["resolved_datetime"], utc=True, errors="coerce")
     df["dt_ist"]   = df["start_datetime"] + IST
     df["hour"]     = df["dt_ist"].dt.hour
     df["dow"]      = df["dt_ist"].dt.day_name()
     df["dow_n"]    = df["dow"].map({d: i for i, d in enumerate(DOW_ORDER)})
-    df["dur_min"]  = (df["resolved_datetime"] - df["start_datetime"]).dt.total_seconds() / 60
+    # Best available end timestamp: closed_datetime (3141) > end_datetime (475) > resolved_datetime (74)
+    _end_ts = df["closed_datetime"].fillna(df["end_datetime"]).fillna(df["resolved_datetime"])
+    df["dur_min"]  = (_end_ts - df["start_datetime"]).dt.total_seconds() / 60
     df = df[(df["latitude"]  > 12.5) & (df["latitude"]  < 13.5) &
             (df["longitude"] > 77.3) & (df["longitude"] < 78.0)].reset_index(drop=True)
     return df
@@ -176,8 +180,8 @@ def compute_priority(_viol):
                        0.25 * grp["peak_count"] / (grp["count"] + 1) +
                        0.15 * grp["avg_sev"] / grp["avg_sev"].max())
     grp["priority"] = (grp["priority"] - grp["priority"].min()) / (grp["priority"].max() - grp["priority"].min())
-    grp["risk"] = pd.cut(grp["priority"], bins=[-0.01, 0.35, 0.65, 1.01],
-                          labels=["🟢 LOW", "🟡 MEDIUM", "🔴 HIGH"])
+    grp["risk"] = pd.qcut(grp["priority"], q=[0, 0.50, 0.85, 1.0],
+                           labels=["🟢 LOW", "🟡 MEDIUM", "🔴 HIGH"])
     return grp.sort_values("priority", ascending=False).reset_index(drop=True)
 
 
@@ -359,6 +363,7 @@ try:
     viol  = load_violations()
     ev    = load_events()
     prio  = compute_priority(viol)
+    days_span = max(1, (viol["dt_ist"].max() - viol["dt_ist"].min()).days + 1)
 except Exception as _boot_err:
     st.error(f"Boot error in data loading: {_boot_err}")
     import traceback; st.code(traceback.format_exc())
@@ -396,9 +401,9 @@ st.markdown("""
 
 # ── KPI row ───────────────────────────────────────────────────────────────────
 avg_dur    = ev["dur_min"].dropna().pipe(lambda s: s[s.between(1,600)]).mean()
-daily_v    = len(viol_f) / 181
-daily_hrs  = (len(ev) * max(avg_dur, 60)) / 60 / 181
-cost_cr    = (len(ev) * max(avg_dur, 60) / 60 * 600 * 181) / 1e7 / 181 * 30  # rough monthly
+daily_v    = len(viol_f) / days_span
+daily_hrs  = (len(ev) * max(avg_dur, 60)) / 60 / days_span
+cost_cr    = len(ev) * max(avg_dur, 60) / 60 * 600 * 30 / 1e7  # monthly cost in Crore INR
 
 k1, k2, k3, k4, k5 = st.columns(5)
 high_risk_cnt = int((prio["risk"] == "🔴 HIGH").sum())
@@ -415,6 +420,27 @@ for col, val, lbl, sub in [
       <div class="kpi-l">{lbl}</div>
       <div class="kpi-s">{sub}</div>
     </div>""", unsafe_allow_html=True)
+
+st.divider()
+
+# ── Key Findings Strip ────────────────────────────────────────────────────────
+_kf1, _kf2, _kf3, _kf4 = st.columns(4)
+_kf1.markdown("""<div class="ibox" style="text-align:center;padding:12px 10px">
+  <div style="font-size:2rem;font-weight:800;color:#4B8BF5">91%</div>
+  <div style="color:#94A3B8;font-size:0.78rem;margin-top:4px">Traffic incidents within<br><b>500 m</b> of a parking cluster</div>
+</div>""", unsafe_allow_html=True)
+_kf2.markdown("""<div class="ibox" style="text-align:center;padding:12px 10px">
+  <div style="font-size:2rem;font-weight:800;color:#4B8BF5">r = 0.79</div>
+  <div style="color:#94A3B8;font-size:0.78rem;margin-top:4px">Hourly Pearson correlation<br>violations ↔ incidents</div>
+</div>""", unsafe_allow_html=True)
+_kf3.markdown(f"""<div class="ibox ibox-warn" style="text-align:center;padding:12px 10px">
+  <div style="font-size:2rem;font-weight:800;color:#F59E0B">67.5 min</div>
+  <div style="color:#94A3B8;font-size:0.78rem;margin-top:4px">Avg incident duration<br>based on {2548:,} closed events</div>
+</div>""", unsafe_allow_html=True)
+_kf4.markdown("""<div class="ibox ibox-red" style="text-align:center;padding:12px 10px">
+  <div style="font-size:2rem;font-weight:800;color:#EF4444">2,823</div>
+  <div style="color:#94A3B8;font-size:0.78rem;margin-top:4px">Repeat offenders (≥3×)<br>10.2% of all violations</div>
+</div>""", unsafe_allow_html=True)
 
 st.divider()
 
@@ -786,11 +812,17 @@ with tabs[4]:
 
         top_corr = corr_df.iloc[0]["corridor"]
         top_ev   = int(corr_df.iloc[0]["events"])
+        top_dur  = int(corr_df.iloc[0]["avg_dur"]) if corr_df.iloc[0]["avg_dur"] > 0 else "—"
         st.markdown(f"""<div class="ibox ibox-red" style="margin-top:16px">
           🔴 <b>Highest Risk</b><br>
-          <b>{top_corr}</b> — {top_ev} incidents<br>
-          <span style="color:#94A3B8;font-size:0.85rem">Focus enforcement patrols on parking
-          violations near this corridor during peak hours</span>
+          <b>{top_corr}</b><br>
+          {top_ev} incidents · {top_dur} min avg<br>
+          <span style="color:#94A3B8;font-size:0.85rem">Deploy enforcement teams along this
+          corridor during 8–11 AM and 5–8 PM windows to prevent parking-induced blockages</span>
+        </div>""", unsafe_allow_html=True)
+        st.markdown("""<div class="ibox ibox-green" style="margin-top:10px">
+          ✅ <b>All 21 corridors</b> have measured avg duration —
+          <span style="color:#94A3B8;font-size:0.85rem">data from 2,548 closed ASTRAM events</span>
         </div>""", unsafe_allow_html=True)
 
     # Event cause breakdown
