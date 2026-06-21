@@ -128,7 +128,6 @@ ev   = load_events()
 prio = compute_priority(viol, ev)
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
-st.sidebar.image(str(BASE / "assets" / "fk_logo.png"), width=72)
 st.sidebar.title("🚔 ParkIQ")
 st.sidebar.caption("Parking Enforcement Intelligence\nBengaluru Traffic Police\n\n**Team MetaBot** · Gridlock 2.0")
 st.sidebar.divider()
@@ -153,9 +152,8 @@ with _h_left:
     st.title("🚔 ParkIQ — AI-Powered Parking Enforcement Intelligence")
     st.caption("Problem Statement 1: Poor Visibility on Parking-Induced Congestion | Gridlock Hackathon 2.0")
 with _h_right:
-    st.image(str(BASE / "assets" / "fk_logo.png"), width=90)
-    st.markdown("<div style='text-align:center;font-size:12px;font-weight:700;color:#2874F0;margin-top:-8px'>Gridlock Hackathon 2.0</div>", unsafe_allow_html=True)
-    st.markdown("<div style='text-align:center;font-size:11px;color:#888;margin-top:2px'>Team MetaBot</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:right;font-size:12px;font-weight:700;color:#2874F0'>Gridlock Hackathon 2.0</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:right;font-size:11px;color:#888;margin-top:2px'>Team MetaBot</div>", unsafe_allow_html=True)
 st.divider()
 
 # ── KPI Row ───────────────────────────────────────────────────────────────────
