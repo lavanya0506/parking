@@ -510,11 +510,11 @@ with tabs[6]:
     st.markdown("### 🔁 Repeat Offenders")
     st.caption("Vehicles that have violated multiple times — targeted enforcement on these prevents hundreds of violations")
 
-    repeat = (df["vehicle_number"].value_counts()
+    repeat = (viol["vehicle_number"].value_counts()
               .reset_index().rename(columns={"vehicle_number":"Vehicle ID","count":"Total Violations"}))
     repeat = repeat[repeat["Total Violations"] > 5].head(20)
-    vtype_map   = df.groupby("vehicle_number")["vehicle_type"].first()
-    station_map = df.groupby("vehicle_number")["police_station"].agg(lambda x: x.value_counts().index[0])
+    vtype_map   = viol.groupby("vehicle_number")["vehicle_type"].first()
+    station_map = viol.groupby("vehicle_number")["police_station"].agg(lambda x: x.value_counts().index[0])
     repeat["Vehicle Type"] = repeat["Vehicle ID"].map(vtype_map)
     repeat["Top Station"]  = repeat["Vehicle ID"].map(station_map)
 
