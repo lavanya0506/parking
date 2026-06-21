@@ -943,12 +943,14 @@ Each zone is sized proportionally so officers cover equal violation load.
     st.caption("Isolation Forest model automatically surfaces police stations showing abnormally high violation counts vs their historical average")
 
     anomalies = models["anomalies"]
-    DOW_N     = {0:"Mon",1:"Tue",2:"Wed",3:"Thu",4:"Fri",5:"Sat",6:"Sun"}
+    # dow stored as day_name() string ("Monday"…) — map directly to abbreviation
+    DOW_ABBR = {"Monday":"Mon","Tuesday":"Tue","Wednesday":"Wed",
+                "Thursday":"Thu","Friday":"Fri","Saturday":"Sat","Sunday":"Sun"}
 
     cols_a = st.columns(3)
     for i, (_, row) in enumerate(anomalies.iterrows()):
         with cols_a[i % 3]:
-            day_n = DOW_N.get(int(row["dow"]), "?")
+            day_n = DOW_ABBR.get(str(row["dow"]), str(row["dow"])[:3])
             mult  = float(row.get("multiplier", 1))
             cnt   = int(row["count"])
             st.markdown(f"""
