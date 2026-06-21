@@ -1,972 +1,1010 @@
-"""
-ParkIQ — AI-Driven Parking Enforcement Intelligence for Bengaluru Traffic Police
-Submission for Gridlock Hackathon 2.0 Round 2 | Problem Statement 1
-"""
-import sys, warnings
-warnings.filterwarnings("ignore")
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent))
+# ═══════════════════════════════════════════════════════════════════════════════
+# ParkIQ v2.0 — AI-Powered Parking Enforcement Intelligence
+# Flipkart Gridlock Hackathon 2.0 | PS1: Parking-Induced Congestion | Team MetaBot
+# ═══════════════════════════════════════════════════════════════════════════════
 
-import streamlit as st
-import pandas as pd
+import ast, warnings, time
 import numpy as np
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from pathlib import Path
+from scipy.stats import pearsonr
 import folium
 from streamlit_folium import st_folium
 from folium.plugins import HeatMap, MarkerCluster
+import streamlit as st
 
-def _dim_attr(fmap):
-    """Minimise mandatory Leaflet attribution — keeps it legal, less distracting."""
-    fmap.get_root().html.add_child(folium.Element(
-        '<style>.leaflet-control-attribution{'
-        'font-size:8px!important;opacity:.28!important;'
-        'background:transparent!important;color:#777!important;'
-        'box-shadow:none!important;padding:1px 4px!important}'
-        '.leaflet-control-attribution a{color:#999!important}</style>'
-    ))
-    return fmap
-
-import ast
+warnings.filterwarnings("ignore")
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="ParkIQ — Bengaluru Enforcement Intelligence",
+    page_title="ParkIQ — Bengaluru Parking Intelligence",
     page_icon="🚔",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-# ── Custom CSS ─────────────────────────────────────────────────────────────────
+# ── Design system ─────────────────────────────────────────────────────────────
 st.markdown("""
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-.metric-card {
-    background: linear-gradient(135deg, #1a1a2e, #16213e);
-    border-radius: 12px; padding: 20px; color: white;
-    border-left: 4px solid #e94560;
-}
-.kpi-value { font-size: 2.5rem; font-weight: 700; color: #e94560; }
-.kpi-label { font-size: 0.85rem; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
-.insight-box {
-    background: #0f3460; border-radius: 8px; padding: 15px;
-    border-left: 3px solid #f5a623; margin: 8px 0; color: white;
-}
-.stTabs [data-baseweb="tab-list"] { gap: 8px; }
-.stTabs [data-baseweb="tab"] {
-    background: #1a1a2e; color: white; border-radius: 8px 8px 0 0;
-    padding: 8px 20px; font-weight: 600;
-}
+  html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
+
+  /* Page background */
+  .stApp { background: #060C1A; }
+
+  /* Sidebar */
+  [data-testid="stSidebar"] { background: #0B1120 !important; border-right: 1px solid #1E2D45; }
+
+  /* Metric cards */
+  .kpi { background: linear-gradient(145deg,#0D1729,#111E33);
+         border: 1px solid #1E3A5F; border-radius: 14px;
+         padding: 22px 24px; text-align: center; }
+  .kpi-v { font-size: 2.2rem; font-weight: 800; color: #4B8BF5; line-height:1; }
+  .kpi-l { font-size: 0.72rem; font-weight: 600; color: #64748B;
+            text-transform: uppercase; letter-spacing: 1.2px; margin-top: 6px; }
+  .kpi-s { font-size: 0.75rem; color: #22C55E; margin-top: 4px; }
+
+  /* Insight box */
+  .ibox { background: rgba(75,139,245,.08); border-left: 3px solid #4B8BF5;
+          border-radius: 0 10px 10px 0; padding: 14px 18px; margin: 8px 0; }
+  .ibox-warn { background: rgba(245,158,11,.08); border-color: #F59E0B; }
+  .ibox-red  { background: rgba(239,68,68,.08);  border-color: #EF4444; }
+  .ibox-green{ background: rgba(34,197,94,.08);  border-color: #22C55E; }
+
+  /* Alert card */
+  .alert-card { background:#0D1729; border:1px solid #1E3A5F; border-radius:12px;
+                padding:16px; margin-bottom:12px; }
+
+  /* Tabs */
+  .stTabs [data-baseweb="tab-list"]  { gap:6px; border-bottom:1px solid #1E2D45; }
+  .stTabs [data-baseweb="tab"]       { background:#0B1120; color:#64748B;
+                                       border-radius:8px 8px 0 0; padding:8px 18px;
+                                       font-weight:600; font-size:0.82rem; border:none; }
+  .stTabs [aria-selected="true"]     { background:#0D1729 !important; color:#4B8BF5 !important;
+                                       border-bottom:2px solid #4B8BF5 !important; }
+
+  /* Divider */
+  hr { border-color:#1E2D45 !important; }
+
+  /* Dataframe */
+  .stDataFrame { border-radius:10px; overflow:hidden; }
+
+  /* Stat hero */
+  .hero { text-align:center; padding:32px 0 16px; }
+  .hero-v { font-size:4rem; font-weight:800; color:#4B8BF5; line-height:1; }
+  .hero-l { font-size:1rem; color:#94A3B8; margin-top:8px; }
+  .hero-sub { font-size:0.85rem; color:#64748B; margin-top:4px; }
+
+  /* Subheader override */
+  h2,h3 { color:#E2E8F0 !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── Data Loading (cached) ──────────────────────────────────────────────────────
+# ── Constants ─────────────────────────────────────────────────────────────────
 BASE = Path(__file__).resolve().parent
 DATA = BASE / "data"
 IST  = pd.Timedelta("5:30:00")
 
-PARKING_VIOLATIONS = [
+PARKING_TYPES = [
     "WRONG PARKING","NO PARKING","PARKING IN A MAIN ROAD",
     "PARKING ON FOOTPATH","DOUBLE PARKING",
     "PARKING NEAR BUSTOP/SCHOOL/HOSPITAL ETC",
     "PARKING NEAR ROAD CROSSING","PARKING NEAR TRAFFIC LIGHT OR ZEBRA CROSS",
     "PARKING OPPOSITE TO ANOTHER PARKED VEHICLE","PARKING OTHER THAN BUS STOP",
 ]
+SEVERITY_W = {"CAR":1,"SCOOTER":0.5,"MOTOR CYCLE":0.5,"PASSENGER AUTO":0.7,
+              "MAXI-CAB":1.5,"LGV":2,"GOODS AUTO":0.8,"PRIVATE BUS":2.5,
+              "TANKER":3,"TRUCK":3,"MOPED":0.4}
+DOW_ORDER = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+MON_ORDER = ["January","February","March","April","May","June",
+             "July","August","September","October","November","December"]
 
-SEVERITY = {"CAR":1,"SCOOTER":0.5,"MOTOR CYCLE":0.5,"PASSENGER AUTO":0.7,
-            "MAXI-CAB":1.5,"LGV":2,"GOODS AUTO":0.8,"PRIVATE BUS":2.5,
-            "TANKER":3,"TRUCK":3,"MOPED":0.4}
+# Chart theme helper
+def _ct(**kw):
+    return dict(template="plotly_dark", paper_bgcolor="#060C1A", plot_bgcolor="#060C1A",
+                font=dict(family="Inter, sans-serif", size=12, color="#94A3B8"),
+                margin=dict(l=30,r=20,t=40,b=30), **kw)
+
+
+def _dim_attr(fmap):
+    """Minimise mandatory Leaflet attribution — keeps it legal, less distracting."""
+    fmap.get_root().html.add_child(folium.Element(
+        '<style>.leaflet-control-attribution{'
+        'font-size:8px!important;opacity:.25!important;'
+        'background:transparent!important;color:#555!important;'
+        'box-shadow:none!important}'
+        '.leaflet-control-attribution a{color:#777!important}</style>'
+    ))
+    return fmap
+
 
 def parse_vtype(s):
-    try: return ast.literal_eval(s)[0]
+    try:    return ast.literal_eval(s)[0]
     except: return str(s)
 
+
+# ── Data loading ──────────────────────────────────────────────────────────────
 @st.cache_data(show_spinner="Loading violation records…")
 def load_violations():
-    df = pd.read_parquet(DATA/"violations.parquet")
+    df = pd.read_parquet(DATA / "violations.parquet")
     df["created_datetime"] = pd.to_datetime(df["created_datetime"], utc=True, errors="coerce")
     df["dt_ist"]  = df["created_datetime"] + IST
     df["hour"]    = df["dt_ist"].dt.hour
     df["dow"]     = df["dt_ist"].dt.day_name()
     df["month"]   = df["dt_ist"].dt.month_name()
+    df["dow_n"]   = df["dow"].map({d: i for i, d in enumerate(DOW_ORDER)})
+    df["month_n"] = df["month"].map({m: i+1 for i, m in enumerate(MON_ORDER)})
     df["primary_violation"] = df["violation_type"].apply(parse_vtype)
-    df["is_parking"] = df["primary_violation"].isin(PARKING_VIOLATIONS)
-    df["severity"] = df["vehicle_type"].map(SEVERITY).fillna(1)
-    df = df[(df["latitude"]>12.5)&(df["latitude"]<13.5)&
-            (df["longitude"]>77.3)&(df["longitude"]<78.0)]
+    df["is_parking"] = df["primary_violation"].isin(PARKING_TYPES)
+    df["severity"]   = df["vehicle_type"].map(SEVERITY_W).fillna(1.0)
+    df = df[(df["latitude"]  > 12.5) & (df["latitude"]  < 13.5) &
+            (df["longitude"] > 77.3) & (df["longitude"] < 78.0)]
     df["junction_clean"] = df["junction_name"].fillna("No Junction")
-    df = df[df["validation_status"]=="approved"].reset_index(drop=True)
+    df = df[df["validation_status"] == "approved"].reset_index(drop=True)
     return df
+
 
 @st.cache_data(show_spinner="Loading incident records…")
 def load_events():
-    df = pd.read_parquet(DATA/"events.parquet")
-    df["start_datetime"] = pd.to_datetime(df["start_datetime"], utc=True, errors="coerce")
-    df["dt_ist"] = df["start_datetime"] + IST
-    df["hour"]   = df["dt_ist"].dt.hour
-    df = df[(df["latitude"]>12.5)&(df["latitude"]<13.5)&
-            (df["longitude"]>77.3)&(df["longitude"]<78.0)].reset_index(drop=True)
+    df = pd.read_parquet(DATA / "events.parquet")
+    df["start_datetime"]    = pd.to_datetime(df["start_datetime"],    utc=True, errors="coerce")
+    df["resolved_datetime"] = pd.to_datetime(df["resolved_datetime"], utc=True, errors="coerce")
+    df["dt_ist"]   = df["start_datetime"] + IST
+    df["hour"]     = df["dt_ist"].dt.hour
+    df["dow"]      = df["dt_ist"].dt.day_name()
+    df["dow_n"]    = df["dow"].map({d: i for i, d in enumerate(DOW_ORDER)})
+    df["dur_min"]  = (df["resolved_datetime"] - df["start_datetime"]).dt.total_seconds() / 60
+    df = df[(df["latitude"]  > 12.5) & (df["latitude"]  < 13.5) &
+            (df["longitude"] > 77.3) & (df["longitude"] < 78.0)].reset_index(drop=True)
     return df
 
-@st.cache_data(show_spinner="Computing enforcement scores…")
-def compute_priority(_viol, _ev):
-    junc = _viol[_viol["junction_clean"]!="No Junction"]
+
+@st.cache_data(show_spinner="Computing junction priorities…")
+def compute_priority(_viol):
+    junc = _viol[_viol["junction_clean"] != "No Junction"]
     grp = junc.groupby("junction_clean").agg(
-        count=("id","count"), lat=("latitude","mean"), lon=("longitude","mean"),
-        peak_hour=("hour",lambda x:x.mode()[0]),
-        police_stn=("police_station",lambda x:x.mode()[0]),
-        avg_sev=("severity","mean"),
+        count     = ("id",             "count"),
+        lat       = ("latitude",       "mean"),
+        lon       = ("longitude",      "mean"),
+        police_stn= ("police_station", lambda x: x.mode()[0] if len(x) else ""),
+        avg_sev   = ("severity",       "mean"),
     ).reset_index()
-    peak = junc[junc["hour"].between(8,11)].groupby("junction_clean").size().rename("peak_count")
-    grp = grp.merge(peak, on="junction_clean", how="left").fillna({"peak_count":0})
-    grp["freq_score"] = grp["count"]/grp["count"].max()
-    grp["peak_score"] = grp["peak_count"]/(grp["count"]+1)
-    grp["sev_score"]  = grp["avg_sev"]/grp["avg_sev"].max()
-    e = _ev.groupby("police_station").size().rename("incidents")
-    vs = junc.groupby(["junction_clean","police_station"]).size().reset_index(name="c")
-    vs = vs.merge(e.reset_index(), on="police_station", how="left")
-    inc = vs.groupby("junction_clean")["incidents"].first().fillna(0)
-    inc = (inc/inc.max()).rename("inc_score")
-    grp = grp.merge(inc, on="junction_clean", how="left").fillna({"inc_score":0})
-    grp["priority_score"] = (0.40*grp["freq_score"]+0.30*grp["peak_score"]+
-                              0.20*grp["inc_score"]+0.10*grp["sev_score"])
-    grp["priority_rank"] = grp["priority_score"].rank(ascending=False).astype(int)
-    grp["alert_level"] = pd.cut(grp["priority_score"],bins=[0,0.3,0.6,1.01],
-                                 labels=["🟢 LOW","🟡 MEDIUM","🔴 HIGH"])
-    return grp.sort_values("priority_score",ascending=False).reset_index(drop=True)
+    peak = junc[junc["hour"].between(8, 11)].groupby("junction_clean").size().rename("peak_count")
+    grp  = grp.merge(peak, on="junction_clean", how="left").fillna({"peak_count": 0})
+    grp["priority"] = (0.6 * grp["count"] / grp["count"].max() +
+                       0.25 * grp["peak_count"] / (grp["count"] + 1) +
+                       0.15 * grp["avg_sev"] / grp["avg_sev"].max())
+    grp["priority"] = (grp["priority"] - grp["priority"].min()) / (grp["priority"].max() - grp["priority"].min())
+    grp["risk"] = pd.cut(grp["priority"], bins=[-0.01, 0.35, 0.65, 1.01],
+                          labels=["🟢 LOW", "🟡 MEDIUM", "🔴 HIGH"])
+    return grp.sort_values("priority", ascending=False).reset_index(drop=True)
 
 
-# ── AI Model Training (cached — runs once at startup) ────────────────────────
-@st.cache_resource(show_spinner="🤖 Training AI models on violation records…")
+@st.cache_data(show_spinner="Calculating congestion correlation…")
+def compute_congestion_link(_viol, _ev):
+    """Core analysis: link parking violations to traffic incidents spatially and temporally."""
+    # 1. Hourly correlation
+    v_hr = _viol.groupby("hour").size().reset_index(name="violations")
+    e_hr = _ev.groupby("hour").size().reset_index(name="events")
+    hourly = v_hr.merge(e_hr, on="hour")
+    r_hr, _ = pearsonr(hourly["violations"], hourly["events"])
+
+    # 2. Station-level scatter
+    v_stn = _viol.groupby("police_station").size().reset_index(name="violations")
+    e_stn = _ev.groupby("police_station").size().reset_index(name="events")
+    station_df = v_stn.merge(e_stn, on="police_station")
+
+    # 3. Spatial proximity: % events within 500m of a violation cluster
+    from scipy.spatial.distance import cdist
+    v_pts = _viol[["latitude","longitude"]].dropna().sample(
+        min(25000, len(_viol)), random_state=42).values
+    e_pts = _ev[["latitude","longitude"]].dropna()
+    e_pts = e_pts[(e_pts["latitude"].between(12.8,13.15)) &
+                  (e_pts["longitude"].between(77.45,77.75))].values
+    D = cdist(e_pts, v_pts)
+    nearby = (D < 0.0045).sum(axis=1)   # 0.0045 deg ≈ 500 m
+    pct_near   = (nearby > 0).mean() * 100
+    avg_nearby = nearby.mean()
+
+    # 4. Corridor breakdown (from events)
+    corr_ev  = _ev[_ev["corridor"].notna() & (_ev["corridor"] != "Non-corridor")]
+    corr_cnt = corr_ev.groupby("corridor").agg(
+        events    = ("id", "count"),
+        avg_dur   = ("dur_min", lambda x: x[x.between(1,600)].mean()),
+        road_closures = ("requires_road_closure", "sum"),
+    ).reset_index()
+
+    return dict(
+        r_hourly     = r_hr,
+        hourly       = hourly,
+        station_df   = station_df,
+        pct_near     = pct_near,
+        avg_nearby   = avg_nearby,
+        corridor_df  = corr_cnt.sort_values("events", ascending=False),
+    )
+
+
+# ── AI model training ─────────────────────────────────────────────────────────
+@st.cache_resource(show_spinner="🤖 Training AI models…")
 def train_ai_models():
-    import warnings, time
-    warnings.filterwarnings("ignore")
-    from sklearn.ensemble import RandomForestClassifier, IsolationForest
+    from sklearn.ensemble import RandomForestClassifier, IsolationForest, GradientBoostingClassifier
     from sklearn.preprocessing import LabelEncoder, StandardScaler
     from sklearn.cluster import KMeans
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import roc_auc_score, f1_score
     import numpy as np
 
-    t0 = time.time()
+    t0    = time.time()
     _viol = load_violations()
+    _ev   = load_events()
 
-    # ── Random Forest: Junction Risk Prediction ──────────────────────────────
-    # Features: junction (encoded) + hour + day_of_week + month
-    # Target:   LOW / MEDIUM / HIGH violation risk
-    grp = (_viol[_viol["junction_clean"] != "No Junction"]
-           .groupby(["junction_clean","hour","dow","month"])
-           .size().reset_index(name="count"))
+    # ── Model 1: Congestion Risk Predictor ──────────────────────────────────
+    # Spatial zones (K-Means on violation locations) → merge with events
+    # Target: did a traffic event occur in this zone × hour × day?
 
-    # Only junctions with ≥50 historical violations (enough signal)
-    valid_j = (_viol[_viol["junction_clean"] != "No Junction"]
-               ["junction_clean"].value_counts())
-    valid_j = valid_j[valid_j >= 50].index
-    grp = grp[grp["junction_clean"].isin(valid_j)]
-
-    p50 = grp["count"].quantile(0.50)
-    p75 = grp["count"].quantile(0.75)
-    grp["risk"] = pd.cut(grp["count"], bins=[-1, p50, p75, 99999],
-                         labels=[0, 1, 2])
-    grp = grp.dropna(subset=["risk"])
-
-    le = LabelEncoder()
-    grp["jenc"] = le.fit_transform(grp["junction_clean"])
-
-    # dow and month are strings (day_name / month_name) — encode to int
-    dow_order = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
-    mon_order = ["January","February","March","April","May","June",
-                 "July","August","September","October","November","December"]
-    grp["dow_n"]   = grp["dow"].map({d:i for i,d in enumerate(dow_order)}).fillna(0).astype(int)
-    grp["month_n"] = grp["month"].map({m:i+1 for i,m in enumerate(mon_order)}).fillna(1).astype(int)
-
-    X = grp[["jenc","hour","dow_n","month_n"]].to_numpy(dtype=float)
-    y = grp["risk"].cat.codes.to_numpy(dtype=int)
-
-    rf = RandomForestClassifier(n_estimators=150, max_depth=12,
-                                random_state=42, n_jobs=-1)
-    rf.fit(X, y)
-    train_acc = (rf.predict(X) == y).mean()
-
-    # Junction lat/lon for map rendering
-    junc_geo = (_viol[_viol["junction_clean"].isin(valid_j)]
-                .groupby("junction_clean")
-                .agg(lat=("latitude","mean"), lon=("longitude","mean"))
-                .reset_index())
-
-    # ── K-Means: Optimal Patrol Zone Detection ───────────────────────────────
     geo = _viol[["latitude","longitude"]].dropna()
-    geo = geo[(geo["latitude"].between(12.8, 13.15)) &
-              (geo["longitude"].between(77.45, 77.75))]
-    sample = geo.sample(n=min(30000, len(geo)), random_state=42).values
+    geo = geo[(geo["latitude"].between(12.8,13.15)) &
+              (geo["longitude"].between(77.45,77.75))]
+    sample_pts = geo.sample(n=min(30000, len(geo)), random_state=42).values
 
-    scaler = StandardScaler()
-    sample_sc = scaler.fit_transform(sample)
+    sc = StandardScaler()
+    pts_sc = sc.fit_transform(sample_pts)
 
+    # 20 enforcement zones
+    km20 = KMeans(n_clusters=20, random_state=42, n_init=10, init="k-means++", algorithm="lloyd")
+    km20.fit(pts_sc)
+
+    # Assign zone to every violation
+    v2 = _viol[["latitude","longitude","hour","dow_n","month_n","id"]].dropna()
+    v2 = v2[(v2["latitude"].between(12.8,13.15)) &
+            (v2["longitude"].between(77.45,77.75))].copy()
+    v2["zone"] = km20.predict(sc.transform(v2[["latitude","longitude"]].values))
+
+    # Assign zone to every event
+    e2 = _ev[["latitude","longitude","hour","dow_n","id"]].dropna()
+    e2 = e2[(e2["latitude"].between(12.8,13.15)) &
+            (e2["longitude"].between(77.45,77.75))].copy()
+    e2["zone"] = km20.predict(sc.transform(e2[["latitude","longitude"]].values))
+
+    # Aggregate: zone × hour × dow → violation count
+    v_agg = (v2.groupby(["zone","hour","dow_n"])
+               .agg(viol_count=("id","count")).reset_index())
+
+    # Aggregate: zone × hour × dow → event count → binary target
+    e_agg = (e2.groupby(["zone","hour","dow_n"])
+               .agg(event_count=("id","count")).reset_index())
+
+    # Full combination space for the training data
+    zones   = np.arange(20)
+    hours   = np.arange(24)
+    dows    = np.arange(7)
+    idx = pd.MultiIndex.from_product([zones, hours, dows],
+                                      names=["zone","hour","dow_n"])
+    grid = pd.DataFrame(index=idx).reset_index()
+    grid = grid.merge(v_agg, on=["zone","hour","dow_n"], how="left").fillna({"viol_count": 0})
+    grid = grid.merge(e_agg, on=["zone","hour","dow_n"], how="left").fillna({"event_count": 0})
+    grid["high_risk"] = (grid["event_count"] >= 1).astype(int)
+    grid["is_peak"]   = grid["hour"].between(8, 11).astype(int)
+    grid["is_wkend"]  = (grid["dow_n"] >= 5).astype(int)
+
+    X = grid[["zone","viol_count","hour","dow_n","is_peak","is_wkend"]].to_numpy(dtype=float)
+    y = grid["high_risk"].to_numpy(dtype=int)
+
+    X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+
+    rf = RandomForestClassifier(n_estimators=200, max_depth=10, class_weight="balanced",
+                                 random_state=42, n_jobs=-1)
+    rf.fit(X_tr, y_tr)
+    y_prob = rf.predict_proba(X_te)[:, 1]
+    auc    = roc_auc_score(y_te, y_prob)
+    f1     = f1_score(y_te, rf.predict(X_te), average="weighted")
+
+    # Zone centroids for map
+    zone_centers = pd.DataFrame(
+        sc.inverse_transform(km20.cluster_centers_),
+        columns=["lat","lon"]
+    )
+    zone_centers["zone"] = np.arange(20)
+
+    # Risk per zone (from training predictions on full grid)
+    grid["risk_prob"] = rf.predict_proba(X)[:, 1]
+    zone_risk = grid.groupby("zone")["risk_prob"].mean().reset_index(name="risk")
+    zone_centers = zone_centers.merge(zone_risk, on="zone")
+    zone_centers["viol_count"] = grid.groupby("zone")["viol_count"].mean().values
+
+    # ── Model 2: K-Means patrol zones (multiple configs) ────────────────────
     km_models = {}
     for n in [5, 8, 10, 12, 15]:
-        km = KMeans(n_clusters=n, random_state=42,
-                    n_init=10, init="k-means++", algorithm="lloyd")
-        km.fit(sample_sc)
+        km = KMeans(n_clusters=n, random_state=42, n_init=10,
+                    init="k-means++", algorithm="lloyd")
+        km.fit(pts_sc)
         km_models[n] = km
 
-    # ── Isolation Forest: Anomaly Detection ─────────────────────────────────
+    # ── Model 3: Anomaly detection (Isolation Forest) ────────────────────────
     sgrp = (_viol.groupby(["police_station","hour","dow"])
             .size().reset_index(name="count"))
     avg_sh = (sgrp.groupby(["police_station","hour"])["count"]
               .mean().reset_index(name="avg"))
     sgrp = sgrp.merge(avg_sh, on=["police_station","hour"])
-
     iso = IsolationForest(contamination=0.05, random_state=42)
     sgrp["is_anomaly"] = iso.fit_predict(sgrp[["count"]]) == -1
-    sgrp["multiplier"]  = (sgrp["count"] / sgrp["avg"]).round(1)
-
+    sgrp["multiplier"] = (sgrp["count"] / sgrp["avg"].clip(lower=1)).round(1)
     anomalies = (sgrp[sgrp["is_anomaly"]]
                  .sort_values("count", ascending=False)
-                 .head(12))
+                 .head(12).reset_index(drop=True))
 
-    return {
-        "rf": rf, "le": le, "train_acc": train_acc,
-        "km_models": km_models, "scaler": scaler,
-        "geo_sample": sample,
-        "anomalies": anomalies, "junc_geo": junc_geo,
-        "fi": rf.feature_importances_,
-        "train_time": time.time() - t0,
-        "n_train": len(X),
-        "valid_juncs": list(valid_j),
-    }
+    return dict(
+        rf=rf, auc=auc, f1=f1,
+        km20=km20, sc=sc, zone_centers=zone_centers,
+        km_models=km_models, sample_pts=sample_pts,
+        anomalies=anomalies,
+        train_time=time.time()-t0,
+        fi=rf.feature_importances_,
+        fi_names=["Zone","Violation Density","Hour","Day of Week","Peak Flag","Weekend Flag"],
+    )
+
 
 # ── Load data ─────────────────────────────────────────────────────────────────
-viol = load_violations()
-ev   = load_events()
-prio = compute_priority(viol, ev)
+viol  = load_violations()
+ev    = load_events()
+prio  = compute_priority(viol)
+clink = compute_congestion_link(viol, ev)
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
-st.sidebar.title("🚔 ParkIQ")
-st.sidebar.caption("Parking Enforcement Intelligence\nBengaluru Traffic Police")
-st.sidebar.divider()
+with st.sidebar:
+    st.markdown("## 🚔 ParkIQ")
+    st.caption("Parking Enforcement Intelligence\nBengaluru Traffic Police")
+    st.divider()
+    stations = ["All Stations"] + sorted(viol["police_station"].dropna().unique().tolist())
+    sel_stn  = st.selectbox("📍 Police Station", stations)
+    st.divider()
+    n_officers = st.slider("👮 Officers Available", 5, 30, 12)
+    st.divider()
+    st.markdown("**Dataset Coverage**")
+    st.caption(f"📅 Nov 2023 – Apr 2024\n\n📍 Bengaluru, Karnataka\n\n"
+               f"🗂 {len(viol):,} approved violations\n\n"
+               f"🚦 {len(ev):,} traffic incidents\n\n📋 298K+ raw records")
 
-police_stations = ["All"] + sorted(viol["police_station"].dropna().unique().tolist())
-sel_station = st.sidebar.selectbox("Filter by Police Station", police_stations)
-if sel_station != "All":
-    viol_f = viol[viol["police_station"]==sel_station]
-    ev_f   = ev[ev["police_station"]==sel_station]
-else:
-    viol_f, ev_f = viol, ev
-
-st.sidebar.divider()
-n_officers = st.sidebar.slider("🚓 Officers Available", 5, 30, 10)
-st.sidebar.divider()
-st.sidebar.markdown("**Data Coverage**")
-st.sidebar.markdown(f"📅 Nov 2023 – Apr 2024\n\n📍 Bengaluru, Karnataka\n\n🗂 {len(viol):,} approved records\n\n📋 298K+ raw records total")
+viol_f = viol if sel_stn == "All Stations" else viol[viol["police_station"] == sel_stn]
+ev_f   = ev   if sel_stn == "All Stations" else ev[ev["police_station"] == sel_stn]
 
 # ── Header ────────────────────────────────────────────────────────────────────
-st.title("🚔 ParkIQ — AI-Powered Parking Enforcement Intelligence")
-st.caption("Problem Statement 1: Poor Visibility on Parking-Induced Congestion | Gridlock Hackathon 2.0")
-st.divider()
+st.markdown("""
+<div style="padding:24px 0 12px">
+  <div style="font-size:1.9rem;font-weight:800;color:#F1F5F9">
+    🚔 ParkIQ — Parking Enforcement Intelligence
+  </div>
+  <div style="color:#64748B;font-size:0.9rem;margin-top:6px">
+    Problem Statement 1 · Parking-Induced Congestion · Flipkart Gridlock Hackathon 2.0 · Team MetaBot
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
-# ── KPI Row ───────────────────────────────────────────────────────────────────
-k1,k2,k3,k4,k5 = st.columns(5)
-with k1:
-    st.metric("Total Violations", f"{len(viol_f):,}", help="Approved, GPS-verified records")
-with k2:
-    top_junc = prio.iloc[0]["junction_clean"].replace("BTP051 - ","") if len(prio)>0 else "N/A"
-    st.metric("Top Hotspot", top_junc[:25])
-with k3:
-    peak_h = int(viol_f["hour"].mode()[0]) if len(viol_f)>0 else 0
-    st.metric("Peak Hour (IST)", f"{peak_h:02d}:00 – {peak_h+1:02d}:00")
-with k4:
-    top_v = viol_f["vehicle_type"].mode()[0] if len(viol_f)>0 else "N/A"
-    st.metric("Top Offender Vehicle", top_v)
-with k5:
-    red_zones = int((prio["alert_level"]=="🔴 HIGH").sum())
-    st.metric("🔴 HIGH Priority Zones", red_zones)
+# ── KPI row ───────────────────────────────────────────────────────────────────
+avg_dur    = ev["dur_min"].dropna().pipe(lambda s: s[s.between(1,600)]).mean()
+daily_v    = len(viol_f) / 181
+daily_hrs  = (len(ev) * max(avg_dur, 60)) / 60 / 181
+cost_cr    = (len(ev) * max(avg_dur, 60) / 60 * 600 * 181) / 1e7 / 181 * 30  # rough monthly
+
+k1, k2, k3, k4, k5 = st.columns(5)
+for col, val, lbl, sub in [
+    (k1, f"{len(viol_f):,}",  "Violations Analysed",        "✅ Approved records"),
+    (k2, f"{len(ev_f):,}",    "Traffic Incidents",           "🚦 ASTRAM events"),
+    (k3, f"{clink['pct_near']:.0f}%", "Incidents Near Violations","📍 within 500 m"),
+    (k4, f"r = {clink['r_hourly']:.2f}", "Hourly Correlation",  "⏰ Violations ↔ Events"),
+    (k5, f"₹{cost_cr:.0f} Cr","Monthly Econ. Cost",          f"⏱ Avg {avg_dur:.0f} min/event"),
+]:
+    col.markdown(f"""<div class="kpi">
+      <div class="kpi-v">{val}</div>
+      <div class="kpi-l">{lbl}</div>
+      <div class="kpi-s">{sub}</div>
+    </div>""", unsafe_allow_html=True)
 
 st.divider()
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 tabs = st.tabs([
-    "🗺️ Live Heatmap",
-    "🔥 Hotspot Analysis",
-    "⏰ Temporal Patterns",
-    "📊 Impact Quantification",
-    "🚓 Enforcement Optimizer",
-    "🚗 Vehicle Intelligence",
-    "🔍 Deep Intelligence",
+    "🗺️ Intelligence Map",
+    "🔥 Parking Hotspots",
+    "🚦 Congestion Link",
+    "⏰ Peak Time Analysis",
+    "🛣️ Corridor Risk",
+    "🚓 Enforcement Plan",
+    "🔁 Repeat Offenders",
     "🤖 AI Predictions",
 ])
 
 # ════════════════════════════════════════════════════════════════════
-# TAB 1 — Live Heatmap
+# TAB 1 — Intelligence Map
 # ════════════════════════════════════════════════════════════════════
 with tabs[0]:
-    st.subheader("Live Violation Heatmap — Bengaluru")
-    c1, c2 = st.columns([3,1])
-    with c2:
-        map_type = st.radio("Display", ["Heat Map","Clusters","Priority Zones"])
-        sample_n = st.slider("Max points (heatmap)", 5000, 50000, 20000, 5000)
+    st.subheader("Parking Violations + Traffic Incidents — Live Map")
+    st.caption("Overlay: parking violation heatmap (blue→red intensity) + ASTRAM incident markers")
 
-    with c1:
-        m = folium.Map(location=[12.97,77.59], zoom_start=12, tiles="CartoDB dark_matter")
+    c_ctrl, c_map = st.columns([1, 3])
+    with c_ctrl:
+        view = st.radio("Map Layer", ["Violations Heatmap", "Traffic Incidents", "Combined View"])
+        sample_n = st.slider("Heatmap points", 5000, 50000, 20000, 5000)
+        st.divider()
+        st.metric("Violations in view", f"{len(viol_f):,}")
+        st.metric("Incidents in view",  f"{len(ev_f):,}")
+        st.markdown(f"""<div class="ibox ibox-warn" style="margin-top:12px">
+          <b>Key Finding</b><br>
+          <span style="font-size:2rem;font-weight:800;color:#F59E0B">{clink['pct_near']:.0f}%</span><br>
+          of incidents are within 500 m of a violation cluster
+        </div>""", unsafe_allow_html=True)
 
-        if map_type == "Heat Map":
-            sample = viol_f[["latitude","longitude","severity"]].dropna().sample(
+    with c_map:
+        m = folium.Map(location=[12.97, 77.59], zoom_start=12, tiles="CartoDB dark_matter")
+
+        if view in ("Violations Heatmap", "Combined View"):
+            samp = viol_f[["latitude","longitude","severity"]].dropna().sample(
                 min(sample_n, len(viol_f)), random_state=42)
-            heat_data = [[r.latitude, r.longitude, r.severity] for _, r in sample.iterrows()]
-            HeatMap(heat_data, radius=10, blur=15, min_opacity=0.4,
-                    gradient={0.2:"blue",0.5:"yellow",0.8:"orange",1.0:"red"}).add_to(m)
+            HeatMap([[r.latitude, r.longitude, r.severity] for _, r in samp.iterrows()],
+                    radius=10, blur=15, min_opacity=0.4,
+                    gradient={0.2:"#3B82F6",0.5:"#FBBF24",0.8:"#F97316",1.0:"#EF4444"}
+                    ).add_to(m)
 
-        elif map_type == "Clusters":
-            mc = MarkerCluster().add_to(m)
-            top100 = prio.head(50)
-            for _, row in top100.iterrows():
-                color = "red" if str(row["alert_level"])=="🔴 HIGH" else \
-                        "orange" if str(row["alert_level"])=="🟡 MEDIUM" else "green"
+        if view in ("Traffic Incidents", "Combined View"):
+            for _, row in ev_f.dropna(subset=["latitude","longitude"]).head(300).iterrows():
+                cause = str(row.get("event_cause",""))
+                color = "red" if "accident" in cause else \
+                        "orange" if "breakdown" in cause else "lightgray"
                 folium.CircleMarker(
-                    location=[row["lat"], row["lon"]],
-                    radius=max(5, int(row["count"]/500)),
-                    color=color, fill=True, fill_opacity=0.7,
+                    location=[row["latitude"], row["longitude"]],
+                    radius=5, color=color, fill=True, fill_opacity=0.7,
                     popup=folium.Popup(
-                        f"<b>{row['junction_clean']}</b><br>"
-                        f"Violations: {row['count']:,}<br>"
-                        f"Priority: {row['alert_level']}<br>"
-                        f"Police: {row['police_stn']}", max_width=250
-                    )
-                ).add_to(mc)
-
-        else:  # Priority Zones
-            for _, row in prio.head(30).iterrows():
-                color = "red" if str(row["alert_level"])=="🔴 HIGH" else \
-                        "orange" if str(row["alert_level"])=="🟡 MEDIUM" else "green"
-                folium.Circle(
-                    location=[row["lat"], row["lon"]],
-                    radius=300, color=color, fill=True, fill_opacity=0.4,
-                    popup=f"{row['junction_clean']}<br>Score: {row['priority_score']:.2f}"
+                        f"<b>{cause.replace('_',' ').title()}</b><br>"
+                        f"Corridor: {row.get('corridor','—')}<br>"
+                        f"Station: {row.get('police_station','—')}",
+                        max_width=220),
                 ).add_to(m)
 
         _dim_attr(m)
-        st_folium(m, height=550, width=None, returned_objects=[])
+        st_folium(m, height=560, width=None, returned_objects=[])
 
 # ════════════════════════════════════════════════════════════════════
-# TAB 2 — Hotspot Analysis
+# TAB 2 — Parking Hotspots
 # ════════════════════════════════════════════════════════════════════
 with tabs[1]:
-    st.subheader("Top Violation Hotspots — Named Junctions")
-    c1, c2 = st.columns([2,1])
-    with c1:
-        top_n = st.slider("Show top N junctions", 5, 30, 15)
-        top_junc = prio.head(top_n)
-        fig = px.bar(
-            top_junc, x="count", y="junction_clean",
-            orientation="h", color="priority_score",
-            color_continuous_scale="Reds",
-            labels={"count":"Total Violations","junction_clean":"Junction",
-                    "priority_score":"Priority Score"},
-            title=f"Top {top_n} Enforcement Priority Junctions"
-        )
-        fig.update_layout(height=500, plot_bgcolor="#0f0f23",
-                          paper_bgcolor="#0f0f23", font_color="white",
-                          yaxis=dict(autorange="reversed"))
-        st.plotly_chart(fig, use_container_width=True)
-
-    with c2:
-        st.markdown("**🔍 Insight**")
-        top5 = prio.head(5)
-        top5_pct = top5["count"].sum() / prio["count"].sum() * 100
-        st.markdown(f"""
-<div class="insight-box">
-<b>Top 5 junctions account for<br>
-<span style="font-size:1.8rem;color:#f5a623">{top5_pct:.1f}%</span><br>
-of all named-junction violations</b><br><br>
-Concentrating enforcement on these 5 zones addresses nearly half the problem
-at specific, identifiable intersections.
-</div>
-""", unsafe_allow_html=True)
-        st.markdown("**Priority Score Components**")
-        st.caption("40% Frequency + 30% Peak-Hour Concentration + 20% Incident Correlation + 10% Vehicle Severity")
-        st.dataframe(
-            prio[["junction_clean","count","alert_level","priority_score","police_stn"]].head(15),
-            use_container_width=True, hide_index=True
-        )
-
-# ════════════════════════════════════════════════════════════════════
-# TAB 3 — Temporal Patterns
-# ════════════════════════════════════════════════════════════════════
-with tabs[2]:
-    st.subheader("When Do Violations Peak?")
-    c1, c2 = st.columns(2)
-
-    with c1:
-        hourly = viol_f.groupby("hour").size().reset_index(name="count")
-        fig = px.area(hourly, x="hour", y="count",
-                      title="Violations by Hour (IST)",
-                      labels={"hour":"Hour of Day (IST)","count":"Violations"},
-                      color_discrete_sequence=["#e94560"])
-        fig.add_vrect(x0=8, x1=11, fillcolor="orange", opacity=0.15,
-                      annotation_text="Morning Peak", annotation_position="top left")
-        fig.add_vrect(x0=17, x1=20, fillcolor="red", opacity=0.15,
-                      annotation_text="Evening Peak", annotation_position="top left")
-        fig.update_layout(plot_bgcolor="#0f0f23", paper_bgcolor="#0f0f23",
-                          font_color="white", height=350)
-        st.plotly_chart(fig, use_container_width=True)
-
-    with c2:
-        dow_order = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
-        dow = viol_f.groupby("dow").size().reindex(dow_order).reset_index(name="count")
-        fig2 = px.bar(dow, x="dow", y="count", title="Violations by Day of Week",
-                      color="count", color_continuous_scale="Reds",
-                      labels={"dow":"Day","count":"Violations"})
-        fig2.update_layout(plot_bgcolor="#0f0f23", paper_bgcolor="#0f0f23",
-                           font_color="white", height=350, showlegend=False)
-        st.plotly_chart(fig2, use_container_width=True)
-
-    c3, c4 = st.columns(2)
-    with c3:
-        monthly = viol_f.groupby("month").size().reset_index(name="count")
-        fig3 = px.bar(monthly, x="month", y="count", title="Monthly Trend",
-                      color="count", color_continuous_scale="Blues",
-                      labels={"month":"Month","count":"Violations"})
-        fig3.update_layout(plot_bgcolor="#0f0f23", paper_bgcolor="#0f0f23",
-                           font_color="white", height=320)
-        st.plotly_chart(fig3, use_container_width=True)
-
-    with c4:
-        top_j = prio.head(5)["junction_clean"].tolist()
-        junc_hourly = (viol_f[viol_f["junction_clean"].isin(top_j)]
-                       .groupby(["junction_clean","hour"]).size().reset_index(name="count"))
-        fig4 = px.line(junc_hourly, x="hour", y="count", color="junction_clean",
-                       title="Top 5 Junctions — Hourly Profile",
-                       labels={"hour":"Hour (IST)","count":"Violations","junction_clean":"Junction"})
-        fig4.update_layout(plot_bgcolor="#0f0f23", paper_bgcolor="#0f0f23",
-                           font_color="white", height=320)
-        st.plotly_chart(fig4, use_container_width=True)
-
-# ════════════════════════════════════════════════════════════════════
-# TAB 4 — Impact Quantification
-# ════════════════════════════════════════════════════════════════════
-with tabs[3]:
-    st.subheader("Impact on Traffic Flow — Quantified Using ASTRAM Incident Data")
-    st.caption("Cross-analyzing 115K approved parking violations with 8,173 ASTRAM traffic incidents across 54 police stations")
-
-    c1, c2 = st.columns([1.5,1])
-    with c1:
-        v_ps = viol_f.groupby("police_station").size().rename("violations").reset_index()
-        e_ps = ev_f.groupby("police_station").size().rename("incidents").reset_index()
-        merged = v_ps.merge(e_ps, on="police_station").dropna()
-        from scipy.stats import pearsonr
-        if len(merged) > 2:
-            r, p = pearsonr(merged["violations"], merged["incidents"])
-        else:
-            r, p = 0, 1
-        fig = px.scatter(merged, x="violations", y="incidents",
-                         text="police_station",
-                         title=f"Parking Violations vs Traffic Incidents (Pearson r = {r:.2f}, p = {p:.4f})",
-                         labels={"violations":"Parking Violations","incidents":"Traffic Incidents"})
-        # manual trendline via numpy
-        if len(merged) > 2:
-            m_slope, m_intercept = np.polyfit(merged["violations"], merged["incidents"], 1)
-            x_range = np.linspace(merged["violations"].min(), merged["violations"].max(), 100)
-            fig.add_trace(go.Scatter(x=x_range, y=m_slope*x_range+m_intercept,
-                                     mode="lines", name="trend",
-                                     line=dict(color="#f5a623", width=2, dash="dash")))
-        fig.update_traces(textposition="top right", marker_size=8, selector=dict(mode="markers+text"))
-        fig.update_layout(plot_bgcolor="#0f0f23", paper_bgcolor="#0f0f23",
-                          font_color="white", height=420, showlegend=False)
-        st.plotly_chart(fig, use_container_width=True)
-
-    with c2:
-        st.markdown("**📊 Key Finding**")
-        direction = "negative" if r < 0 else "positive"
-        st.markdown(f"""
-<div class="insight-box">
-<b>Pearson r = {r:.3f} ({direction})</b><br><br>
-Police stations with <b>more enforcement activity</b> (violations recorded) correlate with
-<b>fewer ASTRAM traffic incidents</b> — consistent with the hypothesis that active enforcement
-reduces congestion events.<br><br>
-<b>Implication:</b> Deploying officers to high-violation zones (BTP051, BTP082) likely
-reduces incident rates. Data-driven deployment can maximise this effect.
-</div>
-""", unsafe_allow_html=True)
-
-        st.divider()
-        st.markdown("**Vehicle-Hour Impact Estimate**")
-        st.caption("Using HCM formula: each violation blocks ~0.25hr at ~7.5% capacity reduction")
-        impact = prio.head(10).copy()
-        impact["veh_hrs_lost"] = (impact["count"] * 0.25 * 0.075).round(0).astype(int)
-        st.dataframe(
-            impact[["junction_clean","count","veh_hrs_lost","alert_level"]].rename(
-                columns={"junction_clean":"Junction","count":"Violations",
-                         "veh_hrs_lost":"Est. Vehicle-Hours Lost","alert_level":"Level"}
-            ), use_container_width=True, hide_index=True
-        )
-
-# ════════════════════════════════════════════════════════════════════
-# TAB 5 — Enforcement Optimizer
-# ════════════════════════════════════════════════════════════════════
-with tabs[4]:
-    st.subheader(f"🚓 Optimal Deployment Plan — {n_officers} Officers Available")
-
-    top_zones = prio.head(n_officers * 2)
-    shifts = ["08:00-10:00 IST (Morning Rush)",
-              "10:00-12:00 IST (Late Morning)",
-              "00:00-03:00 IST (Night Drive)"]
-
-    schedule_rows = []
-    for i in range(n_officers):
-        if i >= len(top_zones): break
-        zone = top_zones.iloc[i]
-        shift = shifts[i % 3]
-        schedule_rows.append({
-            "Officer": f"Officer-{i+1:02d}",
-            "Assigned Zone": zone["junction_clean"][:40],
-            "Police Station": zone["police_stn"],
-            "Shift": shift,
-            "Expected Violations": int(zone["count"]//5),
-            "Priority": str(zone["alert_level"]),
-            "Priority Score": round(float(zone["priority_score"]), 3),
-        })
-    sched = pd.DataFrame(schedule_rows)
-
-    c1, c2 = st.columns([2,1])
-    with c1:
-        def colour_row(row):
-            if "HIGH" in row["Priority"]: return ["background-color:#3d0000"]*len(row)
-            if "MEDIUM" in row["Priority"]: return ["background-color:#2d2000"]*len(row)
-            return [""]*len(row)
-        st.dataframe(sched.style.apply(colour_row, axis=1),
-                     use_container_width=True, hide_index=True, height=380)
-
-    with c2:
-        st.markdown("**📍 Deployment Map**")
-        dm = folium.Map(location=[12.97,77.59], zoom_start=12, tiles="CartoDB dark_matter")
-        colors_by_shift = {"Morning Rush":"red","Late Morning":"orange","Night Drive":"blue"}
-        for _, row in sched.iterrows():
-            zone_row = prio[prio["junction_clean"]==row["Assigned Zone"][:40]].head(1)
-            if zone_row.empty: continue
-            shift_type = row["Shift"].split("IST (")[1].replace(")","")
-            folium.Marker(
-                location=[zone_row.iloc[0]["lat"], zone_row.iloc[0]["lon"]],
-                popup=f"{row['Officer']}<br>{row['Assigned Zone']}<br>{row['Shift']}",
-                icon=folium.Icon(color=colors_by_shift.get(shift_type,"gray"),
-                                 icon="user", prefix="fa")
-            ).add_to(dm)
-        _dim_attr(dm)
-        st_folium(dm, height=380, width=None, returned_objects=[])
-
-    st.divider()
-    st.markdown(f"""
-<div class="insight-box">
-<b>Coverage Estimate:</b> {n_officers} officers covering {min(n_officers, len(prio))} priority zones
-across {sched['Police Station'].nunique()} police stations.<br>
-<b>Projected impact:</b> ~{sched['Expected Violations'].sum():,} violations addressable per deployment cycle.
-</div>
-""", unsafe_allow_html=True)
-
-# ════════════════════════════════════════════════════════════════════
-# TAB 6 — Vehicle Intelligence
-# ════════════════════════════════════════════════════════════════════
-with tabs[5]:
-    st.subheader("Vehicle Type Analysis")
-    c1, c2 = st.columns(2)
-
-    with c1:
-        vt = viol_f["vehicle_type"].value_counts().head(10).reset_index()
-        vt.columns = ["vehicle_type","count"]
-        fig = px.pie(vt, values="count", names="vehicle_type",
-                     title="Violations by Vehicle Type",
-                     color_discrete_sequence=px.colors.sequential.RdBu)
-        fig.update_layout(plot_bgcolor="#0f0f23", paper_bgcolor="#0f0f23",
-                          font_color="white", height=400)
-        st.plotly_chart(fig, use_container_width=True)
-
-    with c2:
-        viol_type = viol_f["primary_violation"].value_counts().head(8).reset_index()
-        viol_type.columns = ["violation_type","count"]
-        fig2 = px.funnel(viol_type, x="count", y="violation_type",
-                         title="Violation Type Distribution",
-                         color_discrete_sequence=["#e94560"])
-        fig2.update_layout(plot_bgcolor="#0f0f23", paper_bgcolor="#0f0f23",
-                           font_color="white", height=400)
-        st.plotly_chart(fig2, use_container_width=True)
-
-    c3, c4 = st.columns(2)
-    with c3:
-        heat = (viol_f.groupby(["vehicle_type","hour"]).size()
-                .reset_index(name="count")
-                .pivot(index="vehicle_type", columns="hour", values="count").fillna(0))
-        top_veh = viol_f["vehicle_type"].value_counts().head(6).index.tolist()
-        heat = heat.loc[heat.index.isin(top_veh)]
-        fig3 = px.imshow(heat, title="Vehicle × Hour Heatmap",
-                         color_continuous_scale="Reds", aspect="auto")
-        fig3.update_layout(plot_bgcolor="#0f0f23", paper_bgcolor="#0f0f23",
-                           font_color="white", height=350)
-        st.plotly_chart(fig3, use_container_width=True)
-
-    with c4:
-        st.markdown("**Key Vehicle Insights**")
-        scooter_pct = viol_f[viol_f["vehicle_type"].isin(["SCOOTER","MOTOR CYCLE"])].shape[0]/len(viol_f)*100
-        car_pct     = viol_f[viol_f["vehicle_type"]=="CAR"].shape[0]/len(viol_f)*100
-        auto_pct    = viol_f[viol_f["vehicle_type"]=="PASSENGER AUTO"].shape[0]/len(viol_f)*100
-        for msg in [
-            f"🛵 <b>Two-wheelers</b> account for <b>{scooter_pct:.1f}%</b> of violations — the dominant offender type",
-            f"🚗 <b>Cars</b>: {car_pct:.1f}% — high physical impact (wider blockage per vehicle)",
-            f"🛺 <b>Autos</b>: {auto_pct:.1f}% — concentrated near commercial zones",
-            "📍 <b>Scooters</b> park on footpaths and bus stops — pedestrian hazard",
-            "🚛 <b>Heavy vehicles</b> (<1%) have outsized congestion impact (3× weight)",
-        ]:
-            st.markdown(f'<div class="insight-box">{msg}</div>', unsafe_allow_html=True)
-
-
-# ════════════════════════════════════════════════════════════════════
-# TAB 7 — Deep Intelligence
-# ════════════════════════════════════════════════════════════════════
-with tabs[6]:
-    st.subheader("🔍 Deep Intelligence — Hidden Patterns in the Data")
-
-    # ── Repeat Offenders ──────────────────────────────────────────────────
-    st.markdown("### 🔁 Repeat Offenders")
-    st.caption("Vehicles that have violated multiple times — targeted enforcement on these prevents hundreds of violations")
-
-    _vc = viol["vehicle_number"].value_counts().reset_index()
-    _vc.columns = ["Vehicle ID", "Total Violations"]
-    repeat = _vc[_vc["Total Violations"] > 5].head(20).copy()
-    vtype_map   = viol.groupby("vehicle_number")["vehicle_type"].first()
-    station_map = viol.groupby("vehicle_number")["police_station"].first()
-    repeat["Vehicle Type"] = repeat["Vehicle ID"].map(vtype_map).fillna("Unknown")
-    repeat["Top Station"]  = repeat["Vehicle ID"].map(station_map).fillna("Unknown")
+    st.subheader("Illegal Parking Hotspots — Junction & Station Ranking")
 
     c1, c2 = st.columns([2, 1])
+
     with c1:
-        fig_r = px.bar(repeat.head(15), x="Vehicle ID", y="Total Violations",
-                       color="Total Violations", color_continuous_scale="Reds",
-                       title="Top 15 Repeat Offending Vehicles")
-        fig_r.update_layout(plot_bgcolor="#0f0f23", paper_bgcolor="#0f0f23",
-                            font_color="white", height=380, xaxis_tickangle=-30)
-        st.plotly_chart(fig_r, use_container_width=True)
+        top_n = st.slider("Top junctions to show", 10, 40, 20)
+        top_j = prio.head(top_n).copy()
+        top_j["Junction"] = top_j["junction_clean"].str.replace("BTP\d+ - ","",regex=True)
+        fig = px.bar(
+            top_j, x="priority", y="Junction", orientation="h",
+            color="priority", color_continuous_scale=["#22C55E","#F59E0B","#EF4444"],
+            labels={"priority":"Priority Score"},
+            title=f"Top {top_n} High-Risk Junctions",
+        )
+        fig.update_layout(**_ct(yaxis=dict(autorange="reversed"), coloraxis_showscale=False,
+                                height=max(400, top_n*28)))
+        fig.update_traces(marker_line_width=0)
+        st.plotly_chart(fig, use_container_width=True)
+
     with c2:
-        top_v      = int(repeat["Total Violations"].iloc[0])
-        total_rep  = int(repeat["Total Violations"].sum())
-        st.markdown(f"""
-<div class="insight-box">
-<b>Top offender: {top_v} violations in 6 months</b><br><br>
-Top 20 repeat vehicles: <b>{total_rep:,} total violations</b><br><br>
-Flagging these in SCITA for priority action could eliminate recurring hotspot congestion at source.
-</div>""", unsafe_allow_html=True)
-        st.dataframe(repeat[["Vehicle ID","Total Violations","Vehicle Type","Top Station"]].head(10),
-                     use_container_width=True, hide_index=True)
+        st.markdown("**Risk Distribution**")
+        risk_counts = prio["risk"].value_counts().reset_index()
+        risk_counts.columns = ["Risk Level","Count"]
+        fig2 = px.pie(risk_counts, values="Count", names="Risk Level",
+                      color="Risk Level",
+                      color_discrete_map={"🔴 HIGH":"#EF4444","🟡 MEDIUM":"#F59E0B","🟢 LOW":"#22C55E"},
+                      hole=0.55)
+        fig2.update_layout(**_ct(height=280, showlegend=True,
+                                  legend=dict(orientation="h", y=-0.1)))
+        st.plotly_chart(fig2, use_container_width=True)
+
+        st.markdown("**Violation Types**")
+        import ast as _ast
+        all_vt = []
+        for row in viol_f["violation_type"].dropna():
+            try:    all_vt.extend(_ast.literal_eval(row))
+            except: all_vt.append(str(row))
+        from collections import Counter
+        vtcnt = pd.DataFrame(Counter(all_vt).most_common(6), columns=["Type","Count"])
+        vtcnt["Type"] = vtcnt["Type"].str.replace("PARKING","PKG",regex=False)
+        fig3 = px.bar(vtcnt, x="Count", y="Type", orientation="h",
+                      color="Count", color_continuous_scale=["#1E3A5F","#4B8BF5"])
+        fig3.update_layout(**_ct(height=260, yaxis=dict(autorange="reversed"),
+                                  coloraxis_showscale=False))
+        st.plotly_chart(fig3, use_container_width=True)
 
     st.divider()
 
-    # ── Real Incident Duration ────────────────────────────────────────────────
-    st.markdown("### ⏱️ Real Congestion Impact — Measured from ASTRAM Data")
-    st.caption("Actual incident open-to-close duration — not estimates")
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.markdown("**📊 Top 10 Police Stations — Violation Count**")
+        stn_v = viol_f["police_station"].value_counts().head(10).reset_index()
+        stn_v.columns = ["Station","Violations"]
+        fig4 = px.bar(stn_v, x="Violations", y="Station", orientation="h",
+                      color="Violations", color_continuous_scale=["#1E3A5F","#4B8BF5"])
+        fig4.update_layout(**_ct(height=340, yaxis=dict(autorange="reversed"),
+                                  coloraxis_showscale=False))
+        st.plotly_chart(fig4, use_container_width=True)
 
-    ev_dur = ev.copy()
-    ev_dur["start_t"]  = pd.to_datetime(ev_dur["start_datetime"],  utc=True, errors="coerce")
-    ev_dur["close_t"]  = pd.to_datetime(ev_dur["closed_datetime"], utc=True, errors="coerce")
-    ev_dur["duration_min"] = (ev_dur["close_t"] - ev_dur["start_t"]).dt.total_seconds() / 60
-    ev_dur = ev_dur[ev_dur["duration_min"].between(1, 600)]
+    with col_b:
+        st.markdown("**🚗 Vehicle Type Breakdown**")
+        vt_cnt = viol_f["vehicle_type"].value_counts().head(8).reset_index()
+        vt_cnt.columns = ["Vehicle","Count"]
+        fig5 = px.bar(vt_cnt, x="Count", y="Vehicle", orientation="h",
+                      color="Count", color_continuous_scale=["#1E3A5F","#22C55E"])
+        fig5.update_layout(**_ct(height=340, yaxis=dict(autorange="reversed"),
+                                  coloraxis_showscale=False))
+        st.plotly_chart(fig5, use_container_width=True)
 
-    c3, c4 = st.columns(2)
-    with c3:
-        dur_cause = (ev_dur.groupby("event_cause")["duration_min"]
-                     .agg(["mean","count"]).reset_index()
-                     .rename(columns={"mean":"Avg Duration (min)","count":"Events","event_cause":"Cause"}))
-        dur_cause = dur_cause.sort_values("Avg Duration (min)", ascending=False)
-        fig_d = px.bar(dur_cause, x="Cause", y="Avg Duration (min)",
-                       color="Avg Duration (min)", color_continuous_scale="Oranges",
-                       title="Average Road Blockage Duration by Incident Cause (minutes)",
-                       text=dur_cause["Avg Duration (min)"].round(0).astype(int))
-        fig_d.update_traces(textposition="outside")
-        fig_d.update_layout(plot_bgcolor="#0f0f23", paper_bgcolor="#0f0f23",
-                            font_color="white", height=420, xaxis_tickangle=-30)
-        st.plotly_chart(fig_d, use_container_width=True)
-    with c4:
-        avg_dur  = ev_dur["duration_min"].mean()
-        max_dur  = ev_dur["duration_min"].max()
-        hi_dur   = ev_dur[ev_dur["priority"]=="High"]["duration_min"].mean()
-        cong_dur = ev_dur[ev_dur["event_cause"]=="congestion"]["duration_min"].mean() if (ev_dur["event_cause"]=="congestion").any() else 0
-        for msg in [
-            f"Average incident duration: <b>{avg_dur:.0f} minutes</b> of road blockage",
-            f"High-priority incidents last <b>{hi_dur:.0f} min</b> on average",
-            f"Worst recorded blockage: <b>{max_dur:.0f} minutes</b> (~{max_dur/60:.1f} hours)",
-            f"Congestion events last <b>{cong_dur:.0f} min</b> on average",
-            "Reducing violations at top 5 junctions directly prevents the longest blockages",
-        ]:
-            st.markdown(f'<div class="insight-box">{msg}</div>', unsafe_allow_html=True)
+    st.subheader("🏆 Priority Junction Table")
+    disp = prio[["junction_clean","count","priority","risk","police_stn"]].head(25).copy()
+    disp.columns = ["Junction","Total Violations","Priority Score","Risk Level","Police Station"]
+    disp["Priority Score"] = disp["Priority Score"].round(3)
+    st.dataframe(disp, use_container_width=True, hide_index=True)
+
+# ════════════════════════════════════════════════════════════════════
+# TAB 3 — Congestion Link  (THE CORE)
+# ════════════════════════════════════════════════════════════════════
+with tabs[2]:
+    st.subheader("🚦 Parking → Congestion: The Evidence")
+    st.caption("Linking 115,400 BTP violation records to 8,173 ASTRAM traffic incidents — our three-pillar proof")
+
+    # ── Pillar 1: Spatial ─────────────────────────────────────────────────────
+    st.markdown("### Pillar 1 — Spatial Co-location")
+    p1a, p1b, p1c = st.columns(3)
+    p1a.markdown(f"""<div class="hero">
+      <div class="hero-v">{clink['pct_near']:.0f}%</div>
+      <div class="hero-l">of traffic incidents occur<br>within <b>500 m</b> of a parking violation cluster</div>
+      <div class="hero-sub">Based on 8,173 ASTRAM events vs 115,400 violations</div>
+    </div>""", unsafe_allow_html=True)
+    p1b.markdown(f"""<div class="hero">
+      <div class="hero-v">{clink['avg_nearby']:.0f}</div>
+      <div class="hero-l">average violations surrounding<br>every traffic event</div>
+      <div class="hero-sub">Within 500 m radius of each incident</div>
+    </div>""", unsafe_allow_html=True)
+    p1c.markdown(f"""<div class="hero">
+      <div class="hero-v">500 m</div>
+      <div class="hero-l">proximity threshold — matches<br>carriageway blockage radius</div>
+      <div class="hero-sub">Standard traffic impact zone</div>
+    </div>""", unsafe_allow_html=True)
+
+    # Map showing both layers side by side
+    m2 = folium.Map(location=[12.97, 77.59], zoom_start=12, tiles="CartoDB dark_matter")
+    samp2 = viol[["latitude","longitude","severity"]].dropna().sample(15000, random_state=1)
+    HeatMap([[r.latitude,r.longitude,r.severity] for _,r in samp2.iterrows()],
+            radius=8, blur=12, min_opacity=0.35,
+            gradient={0.3:"#1E40AF",0.6:"#3B82F6",1.0:"#93C5FD"}).add_to(m2)
+    for _, row in ev.dropna(subset=["latitude","longitude"]).sample(
+            min(500, len(ev)), random_state=42).iterrows():
+        folium.CircleMarker(
+            location=[row["latitude"], row["longitude"]],
+            radius=4, color="#F59E0B", fill=True, fill_opacity=0.8,
+            popup=f"{row.get('event_cause','')}"
+        ).add_to(m2)
+    _dim_attr(m2)
+    st.caption("🔵 Violation density heatmap  |  🟡 Traffic incident locations — notice the overlap")
+    st_folium(m2, height=420, width=None, returned_objects=[])
 
     st.divider()
 
-    # ── Corridor Impact ───────────────────────────────────────────────────────
-    st.markdown("### Road Corridor Congestion Impact")
-    st.caption("Which Bengaluru corridors see the most traffic incidents and longest blockages")
+    # ── Pillar 2: Temporal ────────────────────────────────────────────────────
+    st.markdown("### Pillar 2 — Temporal Correlation")
+    p2a, p2b = st.columns([2, 1])
 
-    corr_df = (ev_dur.groupby("corridor")
-               .agg(incidents=("id","count"), avg_duration=("duration_min","mean"))
-               .reset_index()
-               .query("corridor != 'Non-corridor'")
-               .sort_values("incidents", ascending=False).head(12))
-    corr_df["Total Minutes Lost"] = (corr_df["incidents"] * corr_df["avg_duration"]).round(0).astype(int)
+    with p2a:
+        hourly = clink["hourly"].copy()
+        # Normalise to percentage of daily total for fair comparison
+        hourly["v_pct"] = hourly["violations"] / hourly["violations"].sum() * 100
+        hourly["e_pct"] = hourly["events"]    / hourly["events"].sum()    * 100
 
-    fig_c = px.scatter(corr_df, x="incidents", y="avg_duration",
-                       size="Total Minutes Lost", text="corridor",
-                       color="Total Minutes Lost", color_continuous_scale="Reds",
-                       title="Corridor Risk Matrix — Incident Count vs Average Duration",
-                       labels={"incidents":"Incidents","avg_duration":"Avg Duration (min)"})
-    fig_c.update_traces(textposition="top center")
-    fig_c.update_layout(plot_bgcolor="#0f0f23", paper_bgcolor="#0f0f23",
-                        font_color="white", height=450)
-    st.plotly_chart(fig_c, use_container_width=True)
+        fig_t = go.Figure()
+        fig_t.add_trace(go.Scatter(
+            x=hourly["hour"], y=hourly["v_pct"],
+            name="Parking Violations %", mode="lines+markers",
+            line=dict(color="#4B8BF5", width=2.5),
+            fill="tozeroy", fillcolor="rgba(75,139,245,0.12)",
+        ))
+        fig_t.add_trace(go.Scatter(
+            x=hourly["hour"], y=hourly["e_pct"],
+            name="Traffic Incidents %", mode="lines+markers",
+            line=dict(color="#F59E0B", width=2.5),
+            fill="tozeroy", fillcolor="rgba(245,158,11,0.12)",
+        ))
+        fig_t.update_layout(**_ct(
+            title=f"Hourly Pattern — Both peak at same times (r = {clink['r_hourly']:.2f})",
+            xaxis_title="Hour of Day (IST)",
+            yaxis_title="% of Daily Total",
+            legend=dict(orientation="h", y=1.05),
+            height=360,
+        ))
+        fig_t.add_vrect(x0=8, x1=11, fillcolor="rgba(239,68,68,0.07)", line_width=0,
+                        annotation_text="AM Peak", annotation_position="top left")
+        fig_t.add_vrect(x0=17, x1=20, fillcolor="rgba(245,158,11,0.07)", line_width=0,
+                        annotation_text="PM Peak", annotation_position="top left")
+        st.plotly_chart(fig_t, use_container_width=True)
 
-    st.dataframe(
-        corr_df[["corridor","incidents","avg_duration","Total Minutes Lost"]]
-        .rename(columns={"corridor":"Corridor","incidents":"Incidents","avg_duration":"Avg Duration (min)"}),
-        use_container_width=True, hide_index=True
+    with p2b:
+        r = clink["r_hourly"]
+        st.markdown(f"""<div class="ibox" style="margin-top:16px">
+          <div style="font-size:3rem;font-weight:800;color:#4B8BF5">r = {r:.2f}</div>
+          <div style="color:#94A3B8;font-size:0.85rem;margin-top:8px">
+            Pearson correlation between hourly violation and incident frequencies</div>
+          <div style="color:#22C55E;font-weight:600;margin-top:8px">
+            {'Strong' if r>0.7 else 'Moderate'} positive temporal association
+          </div>
+        </div>""", unsafe_allow_html=True)
+
+        st.markdown("""<div class="ibox ibox-warn" style="margin-top:12px">
+          <b>Interpretation</b><br>
+          Both violations and incidents peak during <b>8–11 AM</b> and <b>5–8 PM</b> — prime parking enforcement windows.
+        </div>""", unsafe_allow_html=True)
+
+        st.markdown("""<div class="ibox ibox-red" style="margin-top:12px">
+          <b>Sunday 9–11 AM</b><br>
+          Highest violation density of the week — commercial areas + religious gatherings
+        </div>""", unsafe_allow_html=True)
+
+    st.divider()
+
+    # ── Pillar 3: Station scatter ─────────────────────────────────────────────
+    st.markdown("### Pillar 3 — Station-Level Analysis")
+    st_df = clink["station_df"]
+    fig_s = px.scatter(
+        st_df, x="violations", y="events",
+        text="police_station",
+        labels={"violations":"Total Parking Violations","events":"Total Traffic Incidents"},
+        title="Violations vs Incidents per Police Station",
+        trendline="ols",
+        trendline_color_override="#EF4444",
     )
+    fig_s.update_traces(marker=dict(size=10, color="#4B8BF5", opacity=0.8),
+                        selector=dict(mode="markers"))
+    fig_s.update_traces(textfont_size=8, textposition="top center")
+    fig_s.update_layout(**_ct(height=420))
+    st.plotly_chart(fig_s, use_container_width=True)
 
+# ════════════════════════════════════════════════════════════════════
+# TAB 4 — Peak Time Analysis
+# ════════════════════════════════════════════════════════════════════
+with tabs[3]:
+    st.subheader("When Illegal Parking Peaks — Temporal Intelligence")
+
+    # Heatmap: violations by hour × day
+    heat_df = (viol_f.groupby(["dow","hour"]).size().reset_index(name="count"))
+    heat_piv = heat_df.pivot(index="dow", columns="hour", values="count").fillna(0)
+    heat_piv = heat_piv.reindex([d for d in DOW_ORDER if d in heat_piv.index])
+
+    fig_h = px.imshow(
+        heat_piv,
+        labels=dict(x="Hour of Day (IST)", y="", color="Violations"),
+        title="Violation Heatmap — Hour × Day of Week",
+        color_continuous_scale=["#0D1729","#1E3A5F","#3B82F6","#F59E0B","#EF4444"],
+        aspect="auto",
+    )
+    fig_h.update_layout(**_ct(height=320, coloraxis_colorbar=dict(title="Violations")))
+    st.plotly_chart(fig_h, use_container_width=True)
+
+    c41, c42 = st.columns(2)
+    with c41:
+        # By hour
+        hr_v = viol_f.groupby("hour").size().reset_index(name="violations")
+        hr_e = ev_f.groupby("hour").size().reset_index(name="events")
+        fig_hr = go.Figure()
+        fig_hr.add_bar(x=hr_v["hour"], y=hr_v["violations"], name="Violations",
+                       marker_color="#4B8BF5", opacity=0.85)
+        fig_hr.add_bar(x=hr_e["hour"], y=hr_e["events"] * (len(viol_f)/len(ev) + 1),
+                       name="Incidents (scaled)", marker_color="#F59E0B", opacity=0.85)
+        fig_hr.update_layout(**_ct(title="Violations & Incidents by Hour",
+                                    xaxis_title="Hour (IST)", yaxis_title="Count",
+                                    barmode="overlay", height=340,
+                                    legend=dict(orientation="h", y=1.05)))
+        st.plotly_chart(fig_hr, use_container_width=True)
+
+    with c42:
+        # By day of week
+        day_v = viol_f.groupby("dow").size().reset_index(name="violations")
+        day_v["dow"] = pd.Categorical(day_v["dow"], categories=DOW_ORDER, ordered=True)
+        day_v = day_v.sort_values("dow")
+        fig_dw = px.bar(day_v, x="dow", y="violations",
+                        color="violations",
+                        color_continuous_scale=["#1E3A5F","#4B8BF5","#EF4444"],
+                        title="Violations by Day of Week",
+                        labels={"dow":"","violations":"Violations"})
+        fig_dw.update_layout(**_ct(height=340, coloraxis_showscale=False))
+        st.plotly_chart(fig_dw, use_container_width=True)
+
+    # Monthly trend
+    month_v = viol_f.groupby("month").size().reset_index(name="violations")
+    month_v["month"] = pd.Categorical(month_v["month"],
+                                       categories=[m for m in MON_ORDER if m in month_v["month"].values],
+                                       ordered=True)
+    month_v = month_v.sort_values("month")
+    fig_mo = px.line(month_v, x="month", y="violations", markers=True,
+                     title="Monthly Violation Trend",
+                     labels={"month":"","violations":"Violations"})
+    fig_mo.update_traces(line_color="#4B8BF5", line_width=2.5, marker_size=8)
+    fig_mo.update_layout(**_ct(height=280))
+    st.plotly_chart(fig_mo, use_container_width=True)
+
+# ════════════════════════════════════════════════════════════════════
+# TAB 5 — Corridor Risk Index
+# ════════════════════════════════════════════════════════════════════
+with tabs[4]:
+    st.subheader("Bengaluru Corridor Risk Index")
+    st.caption("ASTRAM-identified traffic corridors ranked by incident frequency, severity and congestion duration")
+
+    corr_df = clink["corridor_df"].head(12).copy()
+    corr_df["avg_dur"] = corr_df["avg_dur"].fillna(0).round(0).astype(int)
+    corr_df["risk_idx"] = (corr_df["events"] / corr_df["events"].max() * 0.5 +
+                            corr_df["road_closures"] / (corr_df["road_closures"].max() + 1) * 0.3 +
+                            (corr_df["avg_dur"] / corr_df["avg_dur"].max().clip(lower=1)) * 0.2)
+    corr_df["risk_idx"] = (corr_df["risk_idx"] * 100).round(1)
+    corr_df = corr_df.sort_values("risk_idx", ascending=False)
+
+    c51, c52 = st.columns([3, 2])
+    with c51:
+        fig_corr = px.bar(
+            corr_df, x="risk_idx", y="corridor", orientation="h",
+            color="risk_idx",
+            color_continuous_scale=["#22C55E","#F59E0B","#EF4444"],
+            labels={"risk_idx":"Risk Index (0–100)","corridor":""},
+            title="Corridor Risk Index — Ranked by Congestion Severity",
+        )
+        fig_corr.update_layout(**_ct(height=420, yaxis=dict(autorange="reversed"),
+                                      coloraxis_showscale=False))
+        st.plotly_chart(fig_corr, use_container_width=True)
+
+    with c52:
+        st.markdown("**Corridor Detail Table**")
+        disp_c = corr_df[["corridor","events","avg_dur","road_closures","risk_idx"]].copy()
+        disp_c.columns = ["Corridor","Incidents","Avg Duration (min)","Road Closures","Risk Index"]
+        st.dataframe(disp_c, use_container_width=True, hide_index=True)
+
+        top_corr = corr_df.iloc[0]["corridor"]
+        top_ev   = int(corr_df.iloc[0]["events"])
+        st.markdown(f"""<div class="ibox ibox-red" style="margin-top:16px">
+          🔴 <b>Highest Risk</b><br>
+          <b>{top_corr}</b> — {top_ev} incidents<br>
+          <span style="color:#94A3B8;font-size:0.85rem">Focus enforcement patrols on parking
+          violations near this corridor during peak hours</span>
+        </div>""", unsafe_allow_html=True)
+
+    # Event cause breakdown
+    st.divider()
+    cause_df = ev["event_cause"].value_counts().head(10).reset_index()
+    cause_df.columns = ["Cause","Count"]
+    cause_df["Cause"] = cause_df["Cause"].str.replace("_"," ").str.title()
+    fig_cause = px.bar(cause_df, x="Count", y="Cause", orientation="h",
+                       color="Count",
+                       color_continuous_scale=["#1E3A5F","#4B8BF5","#EF4444"],
+                       title="Traffic Incident Causes — ASTRAM Data",
+                       labels={"Cause":"","Count":"Incidents"})
+    fig_cause.update_layout(**_ct(height=340, yaxis=dict(autorange="reversed"),
+                                   coloraxis_showscale=False))
+    st.plotly_chart(fig_cause, use_container_width=True)
+
+# ════════════════════════════════════════════════════════════════════
+# TAB 6 — Enforcement Plan
+# ════════════════════════════════════════════════════════════════════
+with tabs[5]:
+    st.subheader(f"Smart Enforcement Plan — {n_officers} Officers Available")
+
+    # Officer allocation based on priority score
+    top_stn = prio.head(n_officers * 3).copy()
+    top_stn["officers"] = (
+        (top_stn["priority"] / top_stn["priority"].sum() * n_officers)
+        .round().clip(lower=1).astype(int)
+    )
+    top_stn = top_stn.nlargest(n_officers, "priority").reset_index(drop=True)
+    top_stn["Rank"] = top_stn.index + 1
+
+    c61, c62 = st.columns([2, 1])
+    with c61:
+        fig_enf = px.bar(
+            top_stn.head(15), x="officers", y="junction_clean",
+            color="risk",
+            color_discrete_map={"🔴 HIGH":"#EF4444","🟡 MEDIUM":"#F59E0B","🟢 LOW":"#22C55E"},
+            orientation="h",
+            title=f"Officer Deployment — Top 15 Junctions",
+            labels={"officers":"Officers","junction_clean":"Junction","risk":"Risk"},
+        )
+        fig_enf.update_layout(**_ct(height=460, yaxis=dict(autorange="reversed")))
+        st.plotly_chart(fig_enf, use_container_width=True)
+
+    with c62:
+        risk_summary = top_stn["risk"].value_counts().reset_index()
+        risk_summary.columns = ["Level","Junctions"]
+        st.markdown("**Zone Risk Summary**")
+        for _, row in risk_summary.iterrows():
+            col_map = {"🔴 HIGH":"#EF4444","🟡 MEDIUM":"#F59E0B","🟢 LOW":"#22C55E"}
+            c = col_map.get(str(row["Level"]),"#4B8BF5")
+            st.markdown(f"""<div class="alert-card" style="border-left:3px solid {c}">
+              <span style="color:{c};font-size:1.4rem;font-weight:800">{row['Junctions']}</span>
+              <span style="color:#94A3B8;font-size:0.85rem"> {row['Level']} risk zones</span>
+            </div>""", unsafe_allow_html=True)
+
+        st.markdown("**Shift Schedule**")
+        for shift, hours, color in [
+            ("🌅 Morning",  "06:00–14:00","#22C55E"),
+            ("☀️ Afternoon","14:00–22:00","#F59E0B"),
+            ("🌙 Night",    "22:00–06:00","#4B8BF5"),
+        ]:
+            off = max(1, n_officers * [4, 4, 2][["🌅 Morning","☀️ Afternoon","🌙 Night"].index(shift)] // 10)
+            st.markdown(f"""<div class="alert-card" style="border-left:3px solid {color}">
+              <b style="color:{color}">{shift}</b> {hours}<br>
+              <span style="color:#94A3B8">{off} officers / shift</span>
+            </div>""", unsafe_allow_html=True)
+
+    # Deployment map
+    st.markdown("**Deployment Map**")
+    dm = folium.Map(location=[12.97, 77.59], zoom_start=12, tiles="CartoDB dark_matter")
+    for _, row in prio.head(30).iterrows():
+        color = "red" if str(row["risk"]) == "🔴 HIGH" else \
+                "orange" if str(row["risk"]) == "🟡 MEDIUM" else "green"
+        folium.Circle(
+            location=[row["lat"], row["lon"]], radius=300,
+            color=color, fill=True, fill_opacity=0.4,
+            popup=f"{row['junction_clean']}<br>Priority: {row['priority']:.2f}"
+        ).add_to(dm)
+    _dim_attr(dm)
+    st_folium(dm, height=400, width=None, returned_objects=[])
+
+# ════════════════════════════════════════════════════════════════════
+# TAB 7 — Repeat Offenders
+# ════════════════════════════════════════════════════════════════════
+with tabs[6]:
+    st.subheader("🔁 Repeat Offenders — Targeted Enforcement")
+    st.caption("Vehicles violating 3+ times — enforcement on these prevents cascading violations")
+
+    v_cnt = viol["vehicle_number"].value_counts()
+    repeat = v_cnt[v_cnt >= 3].reset_index()
+    repeat.columns = ["Vehicle ID", "Total Violations"]
+
+    station_map = (viol[viol["vehicle_number"].isin(repeat["Vehicle ID"])]
+                   .groupby("vehicle_number")["police_station"].first()
+                   .reset_index())
+    station_map.columns = ["Vehicle ID","Primary Station"]
+    repeat = repeat.merge(station_map, on="Vehicle ID", how="left")
+
+    c71, c72, c73 = st.columns(3)
+    c71.metric("Repeat Vehicles (≥3)", f"{len(repeat):,}")
+    c72.metric("Top Offender",  f"{int(repeat['Total Violations'].max())} violations")
+    c73.metric("Violations from Repeats",
+               f"{int(repeat['Total Violations'].sum()):,}")
+
+    st.divider()
+
+    fig_rep = px.histogram(
+        repeat, x="Total Violations", nbins=25,
+        title="Distribution of Repeat Offences",
+        color_discrete_sequence=["#4B8BF5"],
+        labels={"Total Violations":"Number of Violations","count":"Vehicles"},
+    )
+    fig_rep.update_layout(**_ct(height=300))
+    st.plotly_chart(fig_rep, use_container_width=True)
+
+    st.markdown("**Top 30 Repeat Offenders**")
+    st.dataframe(repeat.head(30), use_container_width=True, hide_index=True)
+
+    # Station-wise repeat count
+    stn_rep = repeat.groupby("Primary Station")["Total Violations"].agg(["count","sum"]).reset_index()
+    stn_rep.columns = ["Station","Repeat Vehicles","Total Violations"]
+    stn_rep = stn_rep.sort_values("Total Violations", ascending=False).head(12)
+    fig_sr = px.bar(stn_rep, x="Total Violations", y="Station", orientation="h",
+                    color="Repeat Vehicles",
+                    color_continuous_scale=["#1E3A5F","#EF4444"],
+                    title="Repeat Offender Concentration by Station",
+                    labels={"Station":""})
+    fig_sr.update_layout(**_ct(height=380, yaxis=dict(autorange="reversed")))
+    st.plotly_chart(fig_sr, use_container_width=True)
 
 # ════════════════════════════════════════════════════════════════════
 # TAB 8 — AI Predictions
 # ════════════════════════════════════════════════════════════════════
 with tabs[7]:
-    st.subheader("🤖 AI Predictions — Machine Learning on Real Violation Data")
-    st.caption("Three ML models trained on 115,400 approved violation records to forecast risk, optimise patrol zones and detect anomalies")
+    st.subheader("🤖 AI Congestion Risk Engine")
+    st.caption("Three ML models trained on 115,400 violation records + 8,173 incident records to predict, cluster, and detect")
 
     models = train_ai_models()
 
-    # ── Model card ──────────────────────────────────────────────────────────
-    mc1, mc2, mc3, mc4 = st.columns(4)
-    with mc1:
-        st.metric("Algorithm", "Random Forest")
-    with mc2:
-        st.metric("Training Accuracy", f"{models['train_acc']*100:.1f}%")
-    with mc3:
-        st.metric("Records Used", f"{models['n_train']:,}")
-    with mc4:
-        st.metric("Training Time", f"{models['train_time']:.2f}s")
-
-    st.markdown("""
-<div class="insight-box">
-Three ML models run entirely on the provided BTP + ASTRAM dataset:
-<b>Random Forest</b> (supervised — predicts junction risk) ·
-<b>K-Means</b> (unsupervised — detects optimal patrol zones) ·
-<b>Isolation Forest</b> (anomaly detection — surfaces unusual spikes automatically)
-</div>""", unsafe_allow_html=True)
+    # ── Model summary cards ──────────────────────────────────────────────────
+    m1, m2, m3, m4 = st.columns(4)
+    for col, val, lbl, sub in [
+        (m1, "Random Forest",          "Congestion Predictor",  "20 enforcement zones"),
+        (m2, f"AUC {models['auc']:.2f}", "Model Quality",       "Test-set ROC AUC"),
+        (m3, f"F1  {models['f1']:.2f}",  "F1 Score",            "Weighted, balanced classes"),
+        (m4, f"{models['train_time']:.1f}s", "Train Time",      "On Streamlit Cloud"),
+    ]:
+        col.markdown(f"""<div class="kpi">
+          <div class="kpi-v" style="font-size:1.6rem">{val}</div>
+          <div class="kpi-l">{lbl}</div>
+          <div class="kpi-s">{sub}</div>
+        </div>""", unsafe_allow_html=True)
 
     st.divider()
 
-    # ════════════════════════════════════
-    # A. JUNCTION RISK FORECASTER
-    # ════════════════════════════════════
-    st.markdown("### 🗺️  Junction Risk Forecaster")
-    st.caption("Select day + hour → AI predicts HIGH / MEDIUM / LOW enforcement priority for every named junction")
-
-    ctrl_col, map_col = st.columns([1, 3])
-    with ctrl_col:
-        DAY_MAP = {0:"Monday",1:"Tuesday",2:"Wednesday",3:"Thursday",
-                   4:"Friday",5:"Saturday",6:"Sunday"}
-        MON_MAP = {11:"November",12:"December",1:"January",
-                   2:"February",3:"March",4:"April"}
-        sel_dow_ai   = st.selectbox("Day of Week", list(DAY_MAP.keys()),
-                                    index=6, format_func=lambda x: DAY_MAP[x])
-        sel_hour_ai  = st.slider("Hour (IST)", 0, 23, 10)
-        sel_month_ai = st.selectbox("Month", list(MON_MAP.keys()),
-                                    index=2, format_func=lambda x: MON_MAP[x])
-        st.caption("Default: Sunday 10 AM Jan — historically peak window")
-
-    le_ai      = models["le"]
-    rf_ai      = models["rf"]
-    junc_geo   = models["junc_geo"]
-
-    jenc_vals  = le_ai.transform(junc_geo["junction_clean"])
-    X_pred     = np.column_stack([
-        jenc_vals,
-        np.full(len(jenc_vals), sel_hour_ai),
-        np.full(len(jenc_vals), sel_dow_ai),
-        np.full(len(jenc_vals), sel_month_ai),
-    ])
-    risk_pred  = rf_ai.predict(X_pred)
-    risk_proba = rf_ai.predict_proba(X_pred)
-
-    pred_df = junc_geo.copy()
-    pred_df["risk"]       = risk_pred
-    pred_df["risk_label"] = pred_df["risk"].map({0:"LOW", 1:"MEDIUM", 2:"HIGH"})
-    pred_df["confidence"] = (risk_proba.max(axis=1) * 100).round(0).astype(int)
-
-    RISK_COLOR = {2:"red", 1:"orange", 0:"green"}
-    with map_col:
-        m_ai = folium.Map(location=[12.97, 77.59], zoom_start=12,
-                          tiles="CartoDB dark_matter")
-        for _, r in pred_df.iterrows():
-            folium.CircleMarker(
-                location=[r["lat"], r["lon"]],
-                radius=9,
-                color=RISK_COLOR[r["risk"]],
-                fill=True, fill_opacity=0.8,
-                popup=folium.Popup(
-                    f"<b>{r['junction_clean']}</b><br>"
-                    f"Predicted Risk: <b>{r['risk_label']}</b><br>"
-                    f"Confidence: {r['confidence']}%",
-                    max_width=220)
-            ).add_to(m_ai)
-        _dim_attr(m_ai)
-        st_folium(m_ai, height=460, width=None, returned_objects=[])
-
-    n_high = int((pred_df["risk"]==2).sum())
-    n_med  = int((pred_df["risk"]==1).sum())
-    n_low  = int((pred_df["risk"]==0).sum())
-    day_str = DAY_MAP[sel_dow_ai]
-    st.markdown(f"""
-<div class="insight-box">
-<b>AI Forecast — {day_str} {sel_hour_ai:02d}:00 IST ({MON_MAP[sel_month_ai]}):</b><br>
-🔴 <b>{n_high} HIGH risk junctions</b> — deploy officers now &nbsp;·&nbsp;
-🟡 {n_med} MEDIUM risk &nbsp;·&nbsp;
-🟢 {n_low} LOW risk
-</div>""", unsafe_allow_html=True)
-
-    if n_high > 0:
-        high_tbl = (pred_df[pred_df["risk"]==2]
-                    [["junction_clean","risk_label","confidence"]]
-                    .rename(columns={"junction_clean":"Junction",
-                                     "risk_label":"AI Risk",
-                                     "confidence":"Confidence %"})
-                    .sort_values("Confidence %", ascending=False)
-                    .reset_index(drop=True))
-        st.markdown("**🔴 HIGH Risk Junctions — deploy officers to these zones:**")
-        st.dataframe(high_tbl, use_container_width=True, hide_index=True)
-
-    st.divider()
-
-    # Feature importance
-    st.markdown("### 📊 Why does the model predict what it predicts?")
-    fi_df = pd.DataFrame({
-        "Feature": ["Junction Location", "Hour of Day", "Day of Week", "Month"],
-        "Importance (%)": (models["fi"] * 100).round(1)
-    }).sort_values("Importance (%)", ascending=True)
-    fig_fi = px.bar(fi_df, x="Importance (%)", y="Feature", orientation="h",
-                    color="Importance (%)", color_continuous_scale="Reds",
-                    title="Feature Importance — What drives violation risk?",
-                    text="Importance (%)")
-    fig_fi.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
-    fig_fi.update_layout(plot_bgcolor="#0f0f23", paper_bgcolor="#0f0f23",
-                         font_color="white", height=300)
+    # ── A. Feature importance ────────────────────────────────────────────────
+    st.markdown("### A. What Drives Congestion Risk?")
+    fi_df = pd.DataFrame({"Feature": models["fi_names"], "Importance": models["fi"]})
+    fi_df = fi_df.sort_values("Importance", ascending=True)
+    fig_fi = px.bar(fi_df, x="Importance", y="Feature", orientation="h",
+                    color="Importance",
+                    color_continuous_scale=["#1E3A5F","#4B8BF5","#22C55E"],
+                    title="Feature Importance — Congestion Risk Predictor",
+                    labels={"Feature":""})
+    fig_fi.update_layout(**_ct(height=320, coloraxis_showscale=False))
     st.plotly_chart(fig_fi, use_container_width=True)
 
-    st.divider()
-
-    # ════════════════════════════════════
-    # B. K-MEANS PATROL ZONE DETECTION
-    # ════════════════════════════════════
-    st.markdown("### 🗺️  ML-Optimised Patrol Zone Detection")
-    st.caption("K-Means clustering automatically detects optimal patrol zones directly from 112,000+ violation GPS points — no manual zone drawing needed")
-
-    n_zones_ai = st.slider("Number of Patrol Zones", 5, 15, 10, key="km_slider")
-    km_ai      = models["km_models"].get(n_zones_ai)
-    scaler_ai  = models["scaler"]
-
-    if km_ai is None:
-        from sklearn.cluster import KMeans as _KM
-        km_ai = _KM(n_clusters=n_zones_ai, random_state=42,
-                    n_init=10, algorithm="lloyd")
-        km_ai.fit(scaler_ai.transform(models["geo_sample"]))
-
-    geo_viol = viol[["latitude","longitude"]].dropna()
-    geo_viol = geo_viol[(geo_viol["latitude"].between(12.8,13.15)) &
-                        (geo_viol["longitude"].between(77.45,77.75))].copy()
-    geo_viol["zone"] = km_ai.predict(
-        scaler_ai.transform(geo_viol[["latitude","longitude"]].values))
-
-    zone_stats = (geo_viol.groupby("zone")
-                  .agg(count=("latitude","count"),
-                       lat=("latitude","mean"),
-                       lon=("longitude","mean"))
-                  .reset_index()
-                  .sort_values("count", ascending=False))
-    zone_stats["officers"] = (
-        zone_stats["count"] / zone_stats["count"].sum() * n_officers
-    ).round(0).astype(int).clip(lower=1)
-    zone_stats["zone_label"] = "Zone " + (zone_stats["zone"]+1).astype(str)
-
-    ZONE_COLS = ["red","orange","blue","green","purple","darkred",
-                 "lightblue","darkblue","cadetblue","lightgreen",
-                 "pink","gray","beige","darkgreen","lightgray"]
-
-    km_c1, km_c2 = st.columns([2, 1])
-    with km_c1:
-        m_km = folium.Map(location=[12.97, 77.59], zoom_start=12,
-                          tiles="CartoDB dark_matter")
-        for _, zr in zone_stats.iterrows():
-            zi   = int(zr["zone"])
-            col  = ZONE_COLS[zi % len(ZONE_COLS)]
-            rad  = max(12, int(zr["count"] / 800))
-            folium.CircleMarker(
-                location=[zr["lat"], zr["lon"]],
-                radius=rad, color=col,
-                fill=True, fill_opacity=0.55,
-                popup=folium.Popup(
-                    f"<b>{zr['zone_label']}</b><br>"
-                    f"Violations: {zr['count']:,}<br>"
-                    f"Recommended Officers: {zr['officers']}",
-                    max_width=200)
-            ).add_to(m_km)
-            folium.map.Marker(
-                [zr["lat"], zr["lon"]],
-                icon=folium.DivIcon(
-                    html=f'<div style="color:white;font-weight:900;'
-                         f'font-size:11px;text-shadow:1px 1px 2px #000">'
-                         f'Z{zi+1}</div>',
-                    icon_size=(25, 15), icon_anchor=(0, 0))
-            ).add_to(m_km)
-        _dim_attr(m_km)
-        st_folium(m_km, height=440, width=None, returned_objects=[])
-
-    with km_c2:
-        st.markdown("**Zone Summary**")
-        st.dataframe(
-            zone_stats[["zone_label","count","officers"]]
-            .rename(columns={"zone_label":"Zone",
-                              "count":"Violations",
-                              "officers":"Officers"}),
-            use_container_width=True, hide_index=True, height=420
-        )
-
-    st.markdown(f"""
-<div class="insight-box">
-K-Means automatically identified <b>{n_zones_ai} optimal patrol zones</b>
-from 112,000+ GPS violation points — no manual zone drawing.
-Each zone is sized proportionally so officers cover equal violation load.
-</div>""", unsafe_allow_html=True)
+    st.markdown("""<div class="ibox ibox-warn">
+      <b>Key finding:</b> <i>Violation density</i> and <i>hour of day</i> are the strongest predictors of traffic congestion —
+      directly validating the problem statement that illegal parking drives congestion.
+    </div>""", unsafe_allow_html=True)
 
     st.divider()
 
-    # ════════════════════════════════════
-    # C. ANOMALY ALERTS
-    # ════════════════════════════════════
-    st.markdown("### ⚠️  AI Anomaly Alerts — Unusual Violation Spikes")
-    st.caption("Isolation Forest model automatically surfaces police stations showing abnormally high violation counts vs their historical average")
+    # ── B. Zone risk map ─────────────────────────────────────────────────────
+    st.markdown("### B. AI-Detected Enforcement Zones")
+    n_zones_sel = st.select_slider("Patrol zones", options=[5, 8, 10, 12, 15], value=10)
+
+    from sklearn.cluster import KMeans as _KM
+    sc   = models["sc"]
+    km_s = models["km_models"][n_zones_sel]
+    zone_centers = pd.DataFrame(
+        sc.inverse_transform(km_s.cluster_centers_), columns=["lat","lon"]
+    )
+
+    m_km = folium.Map(location=[12.97, 77.59], zoom_start=12, tiles="CartoDB dark_matter")
+    colors_km = ["#EF4444","#F59E0B","#22C55E","#4B8BF5","#A78BFA","#F472B6",
+                 "#34D399","#FB923C","#60A5FA","#FBBF24","#6EE7B7","#C4B5FD",
+                 "#FCA5A5","#93C5FD","#6B7280"]
+    samp_pts = models["sample_pts"][:5000]
+    labels   = km_s.predict(sc.transform(samp_pts))
+    for i, (lat, lon) in enumerate(samp_pts):
+        c = colors_km[labels[i] % len(colors_km)]
+        folium.CircleMarker([lat, lon], radius=2, color=c, fill=True,
+                            fill_opacity=0.35).add_to(m_km)
+    for i, row in zone_centers.iterrows():
+        c = colors_km[i % len(colors_km)]
+        folium.map.Marker(
+            [row["lat"], row["lon"]],
+            icon=folium.DivIcon(html=f'<div style="background:{c};color:#fff;'
+                                     f'font-weight:700;font-size:11px;padding:4px 8px;'
+                                     f'border-radius:20px;white-space:nowrap">Zone {i+1}</div>'),
+        ).add_to(m_km)
+    _dim_attr(m_km)
+    st_folium(m_km, height=460, width=None, returned_objects=[])
+
+    st.divider()
+
+    # ── C. Anomaly alerts ────────────────────────────────────────────────────
+    st.markdown("### C. Anomaly Alerts — Unusual Violation Spikes")
+    st.caption("Isolation Forest detects stations showing abnormally high violation counts vs their historical baseline")
 
     anomalies = models["anomalies"]
-    # dow stored as day_name() string ("Monday"…) — map directly to abbreviation
-    DOW_ABBR = {"Monday":"Mon","Tuesday":"Tue","Wednesday":"Wed",
-                "Thursday":"Thu","Friday":"Fri","Saturday":"Sat","Sunday":"Sun"}
+    DOW_ABBR  = {d[:3]: d[:3] for d in DOW_ORDER}
+    FULL_ABBR = {d: d[:3] for d in DOW_ORDER}
 
     cols_a = st.columns(3)
     for i, (_, row) in enumerate(anomalies.iterrows()):
         with cols_a[i % 3]:
-            day_n = DOW_ABBR.get(str(row["dow"]), str(row["dow"])[:3])
-            mult  = float(row.get("multiplier", 1))
+            day_n = FULL_ABBR.get(str(row["dow"]), str(row["dow"])[:3])
+            mult  = float(row.get("multiplier", 1.0))
             cnt   = int(row["count"])
-            st.markdown(f"""
-<div class="insight-box" style="border-left:3px solid #E94560;margin-bottom:10px">
-⚠️ <b>{row["police_station"]}</b><br>
-<span style="color:#aaa;font-size:0.85rem">{day_n} {int(row["hour"]):02d}:00 IST</span><br>
-<span style="font-size:1.5rem;font-weight:900;color:#E94560">{cnt}</span>
-<span style="color:#aaa;font-size:0.8rem"> violations</span><br>
-<span style="color:#F5A623;font-weight:700">{mult:.1f}× above average</span>
-</div>""", unsafe_allow_html=True)
+            st.markdown(f"""<div class="alert-card" style="border-left:3px solid #EF4444">
+              ⚠️ <b>{row['police_station']}</b><br>
+              <span style="color:#64748B;font-size:0.82rem">{day_n} {int(row['hour']):02d}:00 IST</span><br>
+              <span style="font-size:1.8rem;font-weight:800;color:#EF4444">{cnt}</span>
+              <span style="color:#64748B;font-size:0.8rem"> violations</span><br>
+              <span style="color:#F59E0B;font-weight:600">{mult:.1f}× above baseline</span>
+            </div>""", unsafe_allow_html=True)
 
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.divider()
 st.markdown("""
-<div style="text-align:center; color:#666; font-size:0.8rem">
-ParkIQ — Built for Gridlock Hackathon 2.0 Round 2 | PS1: Parking-Induced Congestion<br>
-Data: 298,450 BTP violation records (115K approved) + 8,173 ASTRAM traffic incidents | Nov 2023 – Apr 2024
+<div style="text-align:center;color:#334155;font-size:0.78rem;padding:8px 0">
+  ParkIQ v2.0 · Flipkart Gridlock Hackathon 2.0 · Problem Statement 1: Parking-Induced Congestion · Team MetaBot<br>
+  Data: 298,450 BTP violation records (115K approved) · 8,173 ASTRAM traffic incidents · Bengaluru · Nov 2023 – Apr 2024
 </div>
 """, unsafe_allow_html=True)
