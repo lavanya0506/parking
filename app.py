@@ -128,9 +128,9 @@ ev   = load_events()
 prio = compute_priority(viol, ev)
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
-st.sidebar.image("https://upload.wikimedia.org/wikipedia/en/thumb/b/b2/Seal_of_Bengaluru.svg/200px-Seal_of_Bengaluru.svg.png", width=80)
+st.sidebar.image(str(BASE / "assets" / "fk_logo.png"), width=72)
 st.sidebar.title("🚔 ParkIQ")
-st.sidebar.caption("Parking Enforcement Intelligence\nBengaluru Traffic Police")
+st.sidebar.caption("Parking Enforcement Intelligence\nBengaluru Traffic Police\n\n**Team MetaBot** · Gridlock 2.0")
 st.sidebar.divider()
 
 police_stations = ["All"] + sorted(viol["police_station"].dropna().unique().tolist())
