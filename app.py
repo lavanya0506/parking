@@ -889,7 +889,51 @@ with tabs[4]:
 # TAB 6 — Enforcement Plan
 # ════════════════════════════════════════════════════════════════════
 with tabs[5]:
-    st.subheader(f"Smart Enforcement Plan — {n_officers} Officers Available")
+    st.subheader(f"🎯 Smart Enforcement Plan — {n_officers} Officers Available")
+
+    # ── Smart Patrol Advisor (time-aware) ─────────────────────────────────────
+    st.markdown("### 🎯 Smart Patrol Advisor — Where to Deploy Right Now")
+    st.caption("Select current day and hour — AI recommends top junctions based on historical violation patterns at that exact time")
+
+    _now = pd.Timestamp.now()
+    _adv1, _adv2 = st.columns([1, 3])
+    with _adv1:
+        _default_day = _now.day_name() if _now.day_name() in DOW_ORDER else "Monday"
+        _sel_day = st.selectbox("Day of Week", DOW_ORDER,
+                                index=DOW_ORDER.index(_default_day))
+        _sel_hr  = st.slider("Hour (IST)", 0, 23, min(max(_now.hour, 6), 23),
+                              format="%02d:00")
+
+    _junc_now = (
+        viol_f[(viol_f["dow"] == _sel_day) & (viol_f["hour"] == _sel_hr) &
+               (viol_f["junction_clean"] != "No Junction")]
+        .groupby("junction_clean").size().reset_index(name="violations_at_time")
+        .merge(prio[["junction_clean","risk","near_metro","police_stn"]], on="junction_clean", how="left")
+        .sort_values("violations_at_time", ascending=False)
+        .head(5).reset_index(drop=True)
+    )
+
+    with _adv2:
+        if len(_junc_now) == 0:
+            st.markdown("""<div class="ibox ibox-green" style="margin-top:8px">
+              ✅ <b>Low-risk window</b> — no significant violation history at this time.
+              Officers can focus on other duties.
+            </div>""", unsafe_allow_html=True)
+        else:
+            st.markdown(f"**Deploy now — {_sel_day} {_sel_hr:02d}:00 IST — top {len(_junc_now)} junctions:**")
+            _risk_col = {"🔴 HIGH":"#EF4444","🟡 MEDIUM":"#F59E0B","🟢 LOW":"#22C55E"}
+            for i, r in _junc_now.iterrows():
+                _rc = _risk_col.get(str(r["risk"]), "#4B8BF5")
+                _mt = f" · {r['near_metro']}" if r.get("near_metro") else ""
+                _jname = str(r["junction_clean"]).split(" - ")[-1] if " - " in str(r["junction_clean"]) else str(r["junction_clean"])
+                st.markdown(f"""<div class="alert-card" style="border-left:4px solid {_rc};padding:10px 14px;margin-bottom:6px">
+                  <span style="color:{_rc};font-weight:800;font-size:0.95rem">#{i+1} {_jname}</span>
+                  <span style="color:#64748B;font-size:0.8rem">{_mt}</span><br>
+                  <span style="font-size:1.6rem;font-weight:800;color:#F1F5F9">{int(r['violations_at_time'])}</span>
+                  <span style="color:#64748B;font-size:0.82rem"> violations at this hour · {str(r['risk'])} · {r['police_stn']}</span>
+                </div>""", unsafe_allow_html=True)
+
+    st.divider()
 
     # Officer allocation based on priority score
     top_stn = prio.head(n_officers * 3).copy()
