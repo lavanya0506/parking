@@ -97,6 +97,30 @@ SEVERITY_W = {"CAR":1,"SCOOTER":0.5,"MOTOR CYCLE":0.5,"PASSENGER AUTO":0.7,
               "MAXI-CAB":1.5,"LGV":2,"GOODS AUTO":0.8,"PRIVATE BUS":2.5,
               "TANKER":3,"TRUCK":3,"MOPED":0.4}
 DOW_ORDER = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+
+# Bengaluru BMRC Metro stations (Purple + Green lines) — for proximity flagging
+METRO_STATIONS = {
+    "MG Road":           (12.9756, 77.6069),
+    "Indiranagar":       (12.9784, 77.6408),
+    "Halasuru":          (12.9814, 77.6245),
+    "Trinity":           (12.9721, 77.5972),
+    "Cubbon Park":       (12.9783, 77.5913),
+    "Vidhana Soudha":    (12.9797, 77.5925),
+    "Hosahalli":         (12.9742, 77.5453),
+    "JP Nagar Metro":    (12.9064, 77.5732),
+    "Majestic":          (12.9766, 77.5713),
+    "KR Market":         (12.9659, 77.5763),
+    "Lalbagh":           (12.9490, 77.5820),
+    "Jayanagar":         (12.9308, 77.5837),
+    "Banashankari":      (12.9254, 77.5474),
+    "Rajajinagar":       (12.9916, 77.5557),
+    "Yeshwanthpur":      (13.0264, 77.5520),
+    "Baiyappanahalli":   (12.9878, 77.6479),
+    "Vijayanagar":       (12.9715, 77.5385),
+    "Sampige Road":      (12.9804, 77.5686),
+    "South End Circle":  (12.9390, 77.5820),
+    "City Railway Stn":  (12.9762, 77.5681),
+}
 MON_ORDER = ["January","February","March","April","May","June",
              "July","August","September","October","November","December"]
 
@@ -182,6 +206,13 @@ def compute_priority(_viol):
     grp["priority"] = (grp["priority"] - grp["priority"].min()) / (grp["priority"].max() - grp["priority"].min())
     grp["risk"] = pd.qcut(grp["priority"], q=[0, 0.50, 0.85, 1.0],
                            labels=["🟢 LOW", "🟡 MEDIUM", "🔴 HIGH"])
+    # Flag junctions within ~500 m of a metro station (0.0045° ≈ 500 m)
+    def _nearest_metro(lat, lon):
+        for stn, (slat, slon) in METRO_STATIONS.items():
+            if abs(lat - slat) < 0.0045 and abs(lon - slon) < 0.0045:
+                return f"🚇 {stn}"
+        return ""
+    grp["near_metro"] = [_nearest_metro(r.lat, r.lon) for _, r in grp.iterrows()]
     return grp.sort_values("priority", ascending=False).reset_index(drop=True)
 
 
@@ -576,10 +607,13 @@ with tabs[1]:
         st.plotly_chart(fig5, width="stretch")
 
     st.subheader("🏆 Priority Junction Table")
-    disp = prio[["junction_clean","count","priority","risk","police_stn"]].head(25).copy()
-    disp.columns = ["Junction","Total Violations","Priority Score","Risk Level","Police Station"]
+    disp = prio[["junction_clean","count","priority","risk","police_stn","near_metro"]].head(25).copy()
+    disp.columns = ["Junction","Total Violations","Priority Score","Risk Level","Police Station","Near Metro"]
     disp["Priority Score"] = disp["Priority Score"].round(3)
     st.dataframe(disp, width="stretch", hide_index=True)
+    metro_cnt = int((prio["near_metro"] != "").sum())
+    st.caption(f"🚇 {metro_cnt} of 167 enforcement junctions are within 500 m of a metro station — "
+               f"metro spillover parking is a primary enforcement target")
 
 # ════════════════════════════════════════════════════════════════════
 # TAB 3 — Congestion Link  (THE CORE)
@@ -606,6 +640,18 @@ with tabs[2]:
       <div class="hero-v">500 m</div>
       <div class="hero-l">proximity threshold — matches<br>carriageway blockage radius</div>
       <div class="hero-sub">Standard traffic impact zone</div>
+    </div>""", unsafe_allow_html=True)
+
+    # Traffic flow impact: vehicle-hours lost
+    _veh_hrs_day = round(len(ev) * avg_dur / 60 / days_span, 0)
+    _veh_hrs_tot = round(len(ev) * avg_dur / 60, 0)
+    st.markdown(f"""<div class="ibox ibox-red" style="margin-top:16px;text-align:center">
+      <span style="font-size:2.2rem;font-weight:800;color:#EF4444">{int(_veh_hrs_day):,} vehicle-hours</span>
+      <span style="color:#94A3B8;font-size:0.9rem"> lost every day to parking-induced congestion</span>
+      <div style="color:#64748B;font-size:0.82rem;margin-top:6px">
+        {int(_veh_hrs_tot):,} total vehicle-hours across {days_span} days ·
+        avg {avg_dur:.0f} min per incident · {len(ev):,} ASTRAM incidents
+      </div>
     </div>""", unsafe_allow_html=True)
 
     # Map showing both layers side by side
@@ -1040,8 +1086,9 @@ with tabs[7]:
         st.divider()
 
         # ── C. Anomaly alerts ────────────────────────────────────────────────────
-        st.markdown("### C. Anomaly Alerts — Unusual Violation Spikes")
-        st.caption("Isolation Forest detects stations showing abnormally high violation counts vs their historical baseline")
+        st.markdown("### C. Event-Day Surge Detection")
+        st.caption("Isolation Forest detects stations with abnormal violation spikes — caused by commercial events, "
+                   "religious gatherings, and metro station spillover on high-footfall days")
 
         anomalies = models["anomalies"]
         DOW_ABBR  = {d[:3]: d[:3] for d in DOW_ORDER}
