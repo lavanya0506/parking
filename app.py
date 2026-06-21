@@ -602,13 +602,13 @@ with tabs[6]:
     st.markdown("### 🔁 Repeat Offenders")
     st.caption("Vehicles that have violated multiple times — targeted enforcement on these prevents hundreds of violations")
 
-    repeat = (viol["vehicle_number"].value_counts()
-              .reset_index().rename(columns={"vehicle_number":"Vehicle ID","count":"Total Violations"}))
-    repeat = repeat[repeat["Total Violations"] > 5].head(20)
+    _vc = viol["vehicle_number"].value_counts().reset_index()
+    _vc.columns = ["Vehicle ID", "Total Violations"]
+    repeat = _vc[_vc["Total Violations"] > 5].head(20).copy()
     vtype_map   = viol.groupby("vehicle_number")["vehicle_type"].first()
-    station_map = viol.groupby("vehicle_number")["police_station"].agg(lambda x: x.value_counts().index[0])
-    repeat["Vehicle Type"] = repeat["Vehicle ID"].map(vtype_map)
-    repeat["Top Station"]  = repeat["Vehicle ID"].map(station_map)
+    station_map = viol.groupby("vehicle_number")["police_station"].first()
+    repeat["Vehicle Type"] = repeat["Vehicle ID"].map(vtype_map).fillna("Unknown")
+    repeat["Top Station"]  = repeat["Vehicle ID"].map(station_map).fillna("Unknown")
 
     c1, c2 = st.columns([2, 1])
     with c1:
