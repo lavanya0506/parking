@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 from pathlib import Path
 import folium
 from streamlit_folium import st_folium
-from folium.plugins import HeatMap, MarkerCluster
+from folium.plugins import HeatMap
 import streamlit as st
 
 warnings.filterwarnings("ignore")
@@ -728,6 +728,44 @@ with tabs[2]:
       </div>
     </div>""", unsafe_allow_html=True)
 
+    # ── Causation Chain ───────────────────────────────────────────────────────
+    st.markdown("""<div style="background:#0B1120;border:1px solid #1E2D45;border-radius:14px;padding:20px 24px;margin:16px 0">
+      <div style="font-size:0.7rem;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:14px">
+        THE CAUSAL CHAIN — How Illegal Parking Destroys Traffic Flow
+      </div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:6px">
+        <div style="text-align:center;flex:1;min-width:90px">
+          <div style="font-size:1.7rem">🚗</div>
+          <div style="color:#EF4444;font-weight:700;font-size:0.8rem;margin-top:4px">Illegal Parking</div>
+          <div style="color:#475569;font-size:0.7rem;margin-top:2px">115,400<br>violations</div>
+        </div>
+        <div style="color:#334155;font-size:1.3rem;padding:0 4px;align-self:center">›</div>
+        <div style="text-align:center;flex:1;min-width:90px">
+          <div style="font-size:1.7rem">🚧</div>
+          <div style="color:#F59E0B;font-weight:700;font-size:0.8rem;margin-top:4px">Lane Obstruction</div>
+          <div style="color:#475569;font-size:0.7rem;margin-top:2px">91% spatial<br>co-location</div>
+        </div>
+        <div style="color:#334155;font-size:1.3rem;padding:0 4px;align-self:center">›</div>
+        <div style="text-align:center;flex:1;min-width:90px">
+          <div style="font-size:1.7rem">💥</div>
+          <div style="color:#F59E0B;font-weight:700;font-size:0.8rem;margin-top:4px">Vehicle Breakdown</div>
+          <div style="color:#475569;font-size:0.7rem;margin-top:2px">4,896 events<br>= 60% of ASTRAM</div>
+        </div>
+        <div style="color:#334155;font-size:1.3rem;padding:0 4px;align-self:center">›</div>
+        <div style="text-align:center;flex:1;min-width:90px">
+          <div style="font-size:1.7rem">🚫</div>
+          <div style="color:#EF4444;font-weight:700;font-size:0.8rem;margin-top:4px">Road Closure</div>
+          <div style="color:#475569;font-size:0.7rem;margin-top:2px">676 closures<br>= 8.3% of events</div>
+        </div>
+        <div style="color:#334155;font-size:1.3rem;padding:0 4px;align-self:center">›</div>
+        <div style="text-align:center;flex:1;min-width:90px">
+          <div style="font-size:1.7rem">⏱️</div>
+          <div style="color:#EF4444;font-weight:700;font-size:0.8rem;margin-top:4px">67.5 min Delay</div>
+          <div style="color:#475569;font-size:0.7rem;margin-top:2px">₹17 Cr/month<br>economic loss</div>
+        </div>
+      </div>
+    </div>""", unsafe_allow_html=True)
+
     # Map showing both layers side by side
     m2 = folium.Map(location=[12.97, 77.59], zoom_start=12, tiles="CartoDB dark_matter")
     samp2 = viol[["latitude","longitude","severity"]].dropna().sample(5000, random_state=1)
@@ -803,14 +841,15 @@ with tabs[2]:
         </div>""", unsafe_allow_html=True)
 
         st.markdown("""<div class="ibox ibox-red" style="margin-top:12px">
-          <b>Sunday 9–11 AM</b><br>
-          Highest violation density of the week — commercial areas + religious gatherings
+          <b>Thursday is the peak day</b> (19,164 violations) — week-end
+          shopping + delivery traffic converges. <b>Sunday 9–11 AM</b>
+          ranks highest in commercial-area concentration — religious gatherings + markets.
         </div>""", unsafe_allow_html=True)
 
     st.divider()
 
     # ── Pillar 3: Station scatter ─────────────────────────────────────────────
-    st.markdown("### Supporting Context — Station Distribution")
+    st.markdown("### Pillar 3 — Police Station Evidence: Hotspot Stations Drive Both")
     st_df = clink["station_df"]
     # Manual regression line — avoids statsmodels dependency
     _x = st_df["violations"].values.astype(float)
@@ -961,6 +1000,30 @@ with tabs[4]:
     fig_cause.update_layout(**_ct(height=340, yaxis=dict(autorange="reversed"),
                                    coloraxis_showscale=False))
     st.plotly_chart(fig_cause, width='stretch')
+
+    # Insights from cause distribution
+    _cl1, _cl2, _cl3 = st.columns(3)
+    _cl1.markdown("""<div class="ibox ibox-warn" style="text-align:center">
+      <div style="font-size:2rem;font-weight:800;color:#F59E0B">60%</div>
+      <div style="color:#94A3B8;font-size:0.78rem;margin-top:4px">
+        of incidents are <b>vehicle breakdowns</b> —<br>
+        parked cars block lanes, moving vehicles<br>brake suddenly and stall
+      </div>
+    </div>""", unsafe_allow_html=True)
+    _cl2.markdown("""<div class="ibox ibox-red" style="text-align:center">
+      <div style="font-size:2rem;font-weight:800;color:#EF4444">676</div>
+      <div style="color:#94A3B8;font-size:0.78rem;margin-top:4px">
+        incidents required a <b>full road closure</b> —<br>
+        8.3% of all ASTRAM events · direct result<br>of zero-clearance parking lanes
+      </div>
+    </div>""", unsafe_allow_html=True)
+    _cl3.markdown("""<div class="ibox" style="text-align:center">
+      <div style="font-size:2rem;font-weight:800;color:#4B8BF5">84</div>
+      <div style="color:#94A3B8;font-size:0.78rem;margin-top:4px">
+        <b>public_event</b> incidents logged —<br>
+        confirms PS scenario: events cause<br>parking overflow → congestion spike
+      </div>
+    </div>""", unsafe_allow_html=True)
 
 # ════════════════════════════════════════════════════════════════════
 # TAB 6 — Enforcement Plan
