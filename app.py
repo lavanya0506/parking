@@ -455,57 +455,13 @@ st.markdown("""
     🚔 ParkIQ — Parking Enforcement Intelligence
   </div>
   <div style="color:#64748B;font-size:0.9rem;margin-top:6px">
-    Problem Statement 1 · Parking-Induced Congestion · Flipkart Gridlock Hackathon 2.0 · Team MetaBot
+    Flipkart Gridlock Hackathon 2.0 · Problem Statement 1: Parking-Induced Congestion · Team MetaBot
   </div>
-</div>
-""", unsafe_allow_html=True)
-
-# ── Feature highlight strip (product-first, PS alignment subtle) ─────────────
-st.markdown("""
-<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
-
-  <div style="background:#0D1F0D;border:1px solid #22C55E;border-radius:12px;padding:16px 18px">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start">
-      <div style="font-size:1.15rem;font-weight:700;color:#E2E8F0">📍 Violation Intelligence Map</div>
-      <div style="font-size:0.65rem;color:#22C55E;border:1px solid #22C55E;border-radius:20px;
-                  padding:2px 8px;white-space:nowrap;margin-left:8px">Heatmap Gap ✓</div>
-    </div>
-    <div style="color:#94A3B8;font-size:0.82rem;margin-top:8px;line-height:1.5">
-      Dual-layer Folium map — 115,400 violation heatmap overlaid with 8,173 ASTRAM incident markers
-    </div>
-    <div style="margin-top:10px;color:#22C55E;font-size:0.85rem;font-weight:600">
-      91% co-location · 3.7× enrichment · p&lt;0.0001
-    </div>
+  <div style="color:#94A3B8;font-size:0.82rem;margin-top:4px">
+    Hotspot detection · Congestion quantification · Targeted enforcement —
+    across <b style="color:#4B8BF5">115,400 violations</b> and
+    <b style="color:#F59E0B">8,173 ASTRAM incidents</b> · Bengaluru · 54 police stations
   </div>
-
-  <div style="background:#0D1729;border:1px solid #4B8BF5;border-radius:12px;padding:16px 18px">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start">
-      <div style="font-size:1.15rem;font-weight:700;color:#E2E8F0">🎯 Smart Patrol Advisor</div>
-      <div style="font-size:0.65rem;color:#4B8BF5;border:1px solid #4B8BF5;border-radius:20px;
-                  padding:2px 8px;white-space:nowrap;margin-left:8px">Reactive Gap ✓</div>
-    </div>
-    <div style="color:#94A3B8;font-size:0.82rem;margin-top:8px;line-height:1.5">
-      Select day + hour → top 5 junctions to deploy officers right now, based on historical violation patterns
-    </div>
-    <div style="margin-top:10px;color:#4B8BF5;font-size:0.85rem;font-weight:600">
-      Commercial areas · Metro stations · Event-day surges
-    </div>
-  </div>
-
-  <div style="background:#1A0D0D;border:1px solid #EF4444;border-radius:12px;padding:16px 18px">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start">
-      <div style="font-size:1.15rem;font-weight:700;color:#E2E8F0">🏆 AI Zone Prioritisation</div>
-      <div style="font-size:0.65rem;color:#EF4444;border:1px solid #EF4444;border-radius:20px;
-                  padding:2px 8px;white-space:nowrap;margin-left:8px">Priority Gap ✓</div>
-    </div>
-    <div style="color:#94A3B8;font-size:0.82rem;margin-top:8px;line-height:1.5">
-      167 junctions scored by Random Forest · 25 HIGH · 58 MEDIUM · 84 LOW risk
-    </div>
-    <div style="margin-top:10px;color:#EF4444;font-size:0.85rem;font-weight:600">
-      AUC 0.905 · r = 0.79 (p&lt;0.0001) · ₹17 Cr monthly impact
-    </div>
-  </div>
-
 </div>
 """, unsafe_allow_html=True)
 
