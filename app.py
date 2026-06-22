@@ -610,7 +610,7 @@ with tabs[1]:
         fig.update_layout(**_ct(yaxis=dict(autorange="reversed"), coloraxis_showscale=False,
                                 height=max(400, top_n*28)))
         fig.update_traces(marker_line_width=0)
-        st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, use_container_width=True)
 
     with c2:
         st.markdown("**Risk Distribution**")
@@ -622,7 +622,7 @@ with tabs[1]:
                       hole=0.55)
         fig2.update_layout(**_ct(height=280, showlegend=True,
                                   legend=dict(orientation="h", y=-0.1)))
-        st.plotly_chart(fig2, width='stretch')
+        st.plotly_chart(fig2, use_container_width=True)
 
         st.markdown("**Violation Types**")
         # Use pre-parsed primary_violation (already extracted in load_violations)
@@ -634,7 +634,7 @@ with tabs[1]:
                       color="Count", color_continuous_scale=["#1E3A5F","#4B8BF5"])
         fig3.update_layout(**_ct(height=260, yaxis=dict(autorange="reversed"),
                                   coloraxis_showscale=False))
-        st.plotly_chart(fig3, width='stretch')
+        st.plotly_chart(fig3, use_container_width=True)
 
     st.divider()
 
@@ -647,7 +647,7 @@ with tabs[1]:
                       color="Violations", color_continuous_scale=["#1E3A5F","#4B8BF5"])
         fig4.update_layout(**_ct(height=340, yaxis=dict(autorange="reversed"),
                                   coloraxis_showscale=False))
-        st.plotly_chart(fig4, width='stretch')
+        st.plotly_chart(fig4, use_container_width=True)
 
     with col_b:
         st.markdown("**🚗 Vehicle Type Breakdown**")
@@ -657,13 +657,13 @@ with tabs[1]:
                       color="Count", color_continuous_scale=["#1E3A5F","#22C55E"])
         fig5.update_layout(**_ct(height=340, yaxis=dict(autorange="reversed"),
                                   coloraxis_showscale=False))
-        st.plotly_chart(fig5, width='stretch')
+        st.plotly_chart(fig5, use_container_width=True)
 
     st.subheader("🏆 Priority Junction Table")
     disp = prio[["junction_clean","count","priority","risk","police_stn","zone_type"]].head(25).copy()
     disp.columns = ["Junction","Total Violations","Priority Score","Risk Level","Police Station","Zone Type"]
     disp["Priority Score"] = disp["Priority Score"].round(3)
-    st.dataframe(disp, width='stretch', hide_index=True)
+    st.dataframe(disp, use_container_width=True, hide_index=True)
     metro_cnt      = int((prio["near_metro"] != "").sum())
     commercial_cnt = int((prio["near_commercial"] != "").sum())
     both_cnt       = int(prio["zone_type"].str.contains("Metro.*Commercial|Commercial.*Metro", na=False).sum())
@@ -819,7 +819,7 @@ with tabs[2]:
                         annotation_text="AM Peak", annotation_position="top left")
         fig_t.add_vrect(x0=17, x1=20, fillcolor="rgba(245,158,11,0.07)", line_width=0,
                         annotation_text="PM Peak", annotation_position="top left")
-        st.plotly_chart(fig_t, width='stretch')
+        st.plotly_chart(fig_t, use_container_width=True)
 
     with p2b:
         r = clink["r_hourly"]
@@ -873,7 +873,7 @@ with tabs[2]:
     fig_s.update_traces(textfont_size=8, textposition="top center",
                         selector=dict(mode="markers+text"))
     fig_s.update_layout(**_ct(height=420))
-    st.plotly_chart(fig_s, width='stretch')
+    st.plotly_chart(fig_s, use_container_width=True)
 
 # ════════════════════════════════════════════════════════════════════
 # TAB 4 — Peak Time Analysis
@@ -894,7 +894,7 @@ with tabs[3]:
         aspect="auto",
     )
     fig_h.update_layout(**_ct(height=320, coloraxis_colorbar=dict(title="Violations")))
-    st.plotly_chart(fig_h, width='stretch')
+    st.plotly_chart(fig_h, use_container_width=True)
 
     c41, c42 = st.columns(2)
     with c41:
@@ -910,7 +910,7 @@ with tabs[3]:
                                     xaxis_title="Hour (IST)", yaxis_title="Count",
                                     barmode="overlay", height=340,
                                     legend=dict(orientation="h", y=1.05)))
-        st.plotly_chart(fig_hr, width='stretch')
+        st.plotly_chart(fig_hr, use_container_width=True)
 
     with c42:
         # By day of week
@@ -923,7 +923,7 @@ with tabs[3]:
                         title="Violations by Day of Week",
                         labels={"dow":"","violations":"Violations"})
         fig_dw.update_layout(**_ct(height=340, coloraxis_showscale=False))
-        st.plotly_chart(fig_dw, width='stretch')
+        st.plotly_chart(fig_dw, use_container_width=True)
 
     # Monthly trend
     month_v = viol_f.groupby("month").size().reset_index(name="violations")
@@ -936,7 +936,7 @@ with tabs[3]:
                      labels={"month":"","violations":"Violations"})
     fig_mo.update_traces(line_color="#4B8BF5", line_width=2.5, marker_size=8)
     fig_mo.update_layout(**_ct(height=280))
-    st.plotly_chart(fig_mo, width='stretch')
+    st.plotly_chart(fig_mo, use_container_width=True)
 
 # ════════════════════════════════════════════════════════════════════
 # TAB 5 — Corridor Risk Index
@@ -964,13 +964,13 @@ with tabs[4]:
         )
         fig_corr.update_layout(**_ct(height=420, yaxis=dict(autorange="reversed"),
                                       coloraxis_showscale=False))
-        st.plotly_chart(fig_corr, width='stretch')
+        st.plotly_chart(fig_corr, use_container_width=True)
 
     with c52:
         st.markdown("**Corridor Detail Table**")
         disp_c = corr_df[["corridor","events","avg_dur","road_closures","risk_idx"]].copy()
         disp_c.columns = ["Corridor","Incidents","Avg Duration (min)","Road Closures","Risk Index"]
-        st.dataframe(disp_c, width='stretch', hide_index=True)
+        st.dataframe(disp_c, use_container_width=True, hide_index=True)
 
         top_corr = corr_df.iloc[0]["corridor"]
         top_ev   = int(corr_df.iloc[0]["events"])
@@ -999,7 +999,7 @@ with tabs[4]:
                        labels={"Cause":"","Count":"Incidents"})
     fig_cause.update_layout(**_ct(height=340, yaxis=dict(autorange="reversed"),
                                    coloraxis_showscale=False))
-    st.plotly_chart(fig_cause, width='stretch')
+    st.plotly_chart(fig_cause, use_container_width=True)
 
     # Insights from cause distribution
     _cl1, _cl2, _cl3 = st.columns(3)
@@ -1095,7 +1095,7 @@ with tabs[5]:
             labels={"officers":"Officers","junction_clean":"Junction","risk":"Risk"},
         )
         fig_enf.update_layout(**_ct(height=460, yaxis=dict(autorange="reversed")))
-        st.plotly_chart(fig_enf, width='stretch')
+        st.plotly_chart(fig_enf, use_container_width=True)
 
     with c62:
         risk_summary = top_stn["risk"].value_counts().reset_index()
@@ -1167,10 +1167,10 @@ with tabs[6]:
         labels={"Total Violations":"Number of Violations","count":"Vehicles"},
     )
     fig_rep.update_layout(**_ct(height=300))
-    st.plotly_chart(fig_rep, width='stretch')
+    st.plotly_chart(fig_rep, use_container_width=True)
 
     st.markdown("**Top 30 Repeat Offenders**")
-    st.dataframe(repeat.head(30), width='stretch', hide_index=True)
+    st.dataframe(repeat.head(30), use_container_width=True, hide_index=True)
 
     # Station-wise repeat count
     stn_rep = repeat.groupby("Primary Station")["Total Violations"].agg(["count","sum"]).reset_index()
@@ -1182,7 +1182,7 @@ with tabs[6]:
                     title="Repeat Offender Concentration by Station",
                     labels={"Station":""})
     fig_sr.update_layout(**_ct(height=380, yaxis=dict(autorange="reversed")))
-    st.plotly_chart(fig_sr, width='stretch')
+    st.plotly_chart(fig_sr, use_container_width=True)
 
 # ════════════════════════════════════════════════════════════════════
 # TAB 8 — AI Predictions
@@ -1219,7 +1219,7 @@ with tabs[7]:
                     title="Feature Importance — Congestion Risk Predictor",
                     labels={"Feature":""})
     fig_fi.update_layout(**_ct(height=320, coloraxis_showscale=False))
-    st.plotly_chart(fig_fi, width='stretch')
+    st.plotly_chart(fig_fi, use_container_width=True)
 
     st.markdown("""<div class="ibox ibox-warn">
       <b>Key finding:</b> <i>Violation density</i> and <i>hour of day</i> are the strongest predictors of traffic congestion —
