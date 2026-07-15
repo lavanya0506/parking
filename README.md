@@ -85,7 +85,3 @@ streamlit run app.py
    0.79  Pearson r (hourly)        |   ₹17Cr  monthly economic impact
   0.905  Random Forest AUC         |   5.7min demo video (ParkIQ_Demo_v3.mp4)
 ```
-
----
-
-*ParkIQ v2.0 · Team MetaBot · NIT Durgapur*
