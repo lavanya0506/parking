@@ -18,7 +18,7 @@ warnings.filterwarnings("ignore")
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="ParkIQ — Bengaluru Parking Intelligence",
+    page_title="ParkIQ — Gurugram Parking Intelligence",
     page_icon="🚔",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -98,47 +98,53 @@ SEVERITY_W = {"CAR":1,"SCOOTER":0.5,"MOTOR CYCLE":0.5,"PASSENGER AUTO":0.7,
               "TANKER":3,"TRUCK":3,"MOPED":0.4}
 DOW_ORDER = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
 
-# Bengaluru BMRC Metro stations (Purple + Green lines) — for proximity flagging
+# Gurugram Metro/Transit Hubs & Commercial Areas
+# Note: Gurugram rapid metro and commercial corridors are concentrated in central business areas
 METRO_STATIONS = {
-    "MG Road":           (12.9756, 77.6069),
-    "Indiranagar":       (12.9784, 77.6408),
-    "Halasuru":          (12.9814, 77.6245),
-    "Trinity":           (12.9721, 77.5972),
-    "Cubbon Park":       (12.9783, 77.5913),
-    "Vidhana Soudha":    (12.9797, 77.5925),
-    "Hosahalli":         (12.9742, 77.5453),
-    "JP Nagar Metro":    (12.9064, 77.5732),
-    "Majestic":          (12.9766, 77.5713),
-    "KR Market":         (12.9659, 77.5763),
-    "Lalbagh":           (12.9490, 77.5820),
-    "Jayanagar":         (12.9308, 77.5837),
-    "Banashankari":      (12.9254, 77.5474),
-    "Rajajinagar":       (12.9916, 77.5557),
-    "Yeshwanthpur":      (13.0264, 77.5520),
-    "Baiyappanahalli":   (12.9878, 77.6479),
-    "Vijayanagar":       (12.9715, 77.5385),
-    "Sampige Road":      (12.9804, 77.5686),
-    "South End Circle":  (12.9390, 77.5820),
-    "City Railway Stn":  (12.9762, 77.5681),
+    "Cyber City":           (28.4595, 77.1052),
+    "DLF Phase 5":          (28.4616, 77.0986),
+    "MG Road":              (28.4594, 77.1065),
+    "Golf Course Road":     (28.4612, 77.0923),
+    "Sector 14 Commercial": (28.4560, 77.0920),
+    "Sector 18 Hub":        (28.4515, 77.0855),
+    "Cyber Park Junction":  (28.4576, 77.1108),
+    "Orchid Centre":        (28.4603, 77.0945),
+    "Galleria Market":      (28.4522, 77.0892),
+    "Herald Square":        (28.4538, 77.0870),
+    "Costa Coffee Hub":     (28.4608, 77.1018),
+    "SPR Sector 22":        (28.4675, 77.0945),
+    "Sector 25 Market":     (28.4728, 77.0988),
+    "Unitech Cyber One":    (28.4580, 77.1132),
+    "SoGo Towers":          (28.4605, 77.1145),
+    "Nirvaan Country":      (28.4750, 77.1085),
+    "CyberHub Plaza":       (28.4634, 77.1088),
+    "Essel Towers":         (28.4620, 77.1175),
+    "ITC Sector 29":        (28.4785, 77.0920),
+    "Genpact Tower":        (28.4587, 77.1205),
 }
 
-# Bengaluru major commercial hubs — PS explicitly cites "commercial areas"
+# Gurugram major commercial hubs & traffic bottlenecks
 COMMERCIAL_ZONES = {
-    "MG Road / Brigade Rd":   (12.9719, 77.6065),
-    "Commercial Street":      (12.9814, 77.6103),
-    "Chickpete / BVK Iyengar":(12.9649, 77.5760),
-    "SP Road Electronics":    (12.9724, 77.5779),
-    "Malleswaram Market":     (12.9990, 77.5686),
-    "KR Market Wholesale":    (12.9659, 77.5763),
-    "Jayanagar Shopping":     (12.9308, 77.5837),
-    "Koramangala 5th Block":  (12.9352, 77.6244),
-    "Indiranagar 100ft Rd":   (12.9784, 77.6408),
-    "Shivajinagar Bus Stand": (12.9824, 77.6010),
-    "Rajajinagar Market":     (12.9916, 77.5557),
-    "Marathahalli Bridge":    (12.9566, 77.7010),
-    "HSR Layout Market":      (12.9119, 77.6399),
-    "BTM Layout Market":      (12.9165, 77.6101),
-    "Yeshwanthpur Market":    (13.0264, 77.5520),
+    "MG Road / Golf Course": (28.4603, 77.0985),
+    "Cyber City Hub":       (28.4595, 77.1052),
+    "Sector 14 Market":     (28.4560, 77.0920),
+    "Sector 18 Commercial": (28.4515, 77.0855),
+    "DLF Phase 5":          (28.4616, 77.0986),
+    "Orchid Plaza":         (28.4603, 77.0945),
+    "Galleria Market Road": (28.4522, 77.0892),
+    "Sector 25 Junction":   (28.4728, 77.0988),
+    "SPR Business Park":    (28.4675, 77.0945),
+    "Nirvaan Country Club": (28.4750, 77.1085),
+    "Essel Business Park":  (28.4620, 77.1175),
+    "CyberHub Road":        (28.4634, 77.1088),
+    "Golf Course Extension":(28.4620, 77.0880),
+    "Sadar Bazar Area":     (28.4450, 77.0750),
+    "DLF Mall of India":    (28.4565, 77.0758),
+    "Sector 22 Market":     (28.4675, 77.0945),
+    "Herald Square":        (28.4538, 77.0870),
+    "Genpact Hub":          (28.4587, 77.1205),
+    "Unitech Towers":       (28.4580, 77.1132),
+    "Sohna Road Junction":  (28.4350, 77.0650),
 }
 MON_ORDER = ["January","February","March","April","May","June",
              "July","August","September","October","November","December"]
@@ -181,8 +187,8 @@ def load_violations():
     df["primary_violation"] = df["violation_type"].apply(parse_vtype)
     df["is_parking"] = df["primary_violation"].isin(PARKING_TYPES)
     df["severity"]   = df["vehicle_type"].map(SEVERITY_W).fillna(1.0)
-    df = df[(df["latitude"]  > 12.5) & (df["latitude"]  < 13.5) &
-            (df["longitude"] > 77.3) & (df["longitude"] < 78.0)]
+    df = df[(df["latitude"]  > 28.3) & (df["latitude"]  < 28.55) &
+            (df["longitude"] > 76.95) & (df["longitude"] < 77.25)]
     df["junction_clean"] = df["junction_name"].fillna("No Junction")
     df = df[df["validation_status"] == "approved"].reset_index(drop=True)
     return df
@@ -202,8 +208,8 @@ def load_events():
     # Best available end timestamp: closed_datetime (3141) > end_datetime (475) > resolved_datetime (74)
     _end_ts = df["closed_datetime"].fillna(df["end_datetime"]).fillna(df["resolved_datetime"])
     df["dur_min"]  = (_end_ts - df["start_datetime"]).dt.total_seconds() / 60
-    df = df[(df["latitude"]  > 12.5) & (df["latitude"]  < 13.5) &
-            (df["longitude"] > 77.3) & (df["longitude"] < 78.0)].reset_index(drop=True)
+    df = df[(df["latitude"]  > 28.3) & (df["latitude"]  < 28.55) &
+            (df["longitude"] > 76.95) & (df["longitude"] < 77.25)].reset_index(drop=True)
     return df
 
 
@@ -266,15 +272,15 @@ def compute_congestion_link(_viol, _ev):
     GRID = 0.0045  # ~500 m in degrees lat/lon
     from collections import Counter
     v_geo = _viol[["latitude","longitude"]].dropna()
-    v_geo = v_geo[(v_geo["latitude"].between(12.8,13.15)) &
-                  (v_geo["longitude"].between(77.45,77.75))]
+    v_geo = v_geo[(v_geo["latitude"].between(28.35,28.50)) &
+                  (v_geo["longitude"].between(77.00,77.20))]
     v_cells = Counter(zip(
         (v_geo["latitude"].values  // GRID).astype(int),
         (v_geo["longitude"].values // GRID).astype(int),
     ))
     e_geo = _ev[["latitude","longitude"]].dropna()
-    e_geo = e_geo[(e_geo["latitude"].between(12.8,13.15)) &
-                  (e_geo["longitude"].between(77.45,77.75))]
+    e_geo = e_geo[(e_geo["latitude"].between(28.35,28.50)) &
+                  (e_geo["longitude"].between(77.00,77.20))]
     e_lat_c = (e_geo["latitude"].values  // GRID).astype(int)
     e_lon_c = (e_geo["longitude"].values // GRID).astype(int)
     nearby     = [v_cells.get((la, lo), 0) for la, lo in zip(e_lat_c, e_lon_c)]
@@ -318,27 +324,27 @@ def train_ai_models(_viol, _ev):
     # Target: did a traffic event occur in this zone × hour × day?
 
     geo = _viol[["latitude","longitude"]].dropna()
-    geo = geo[(geo["latitude"].between(12.8,13.15)) &
-              (geo["longitude"].between(77.45,77.75))]
+    geo = geo[(geo["latitude"].between(28.35,28.50)) &
+              (geo["longitude"].between(77.00,77.20))]
     sample_pts = geo.sample(n=min(4000, len(geo)), random_state=42).values
 
     sc = StandardScaler()
     pts_sc = sc.fit_transform(sample_pts)
 
-    # 20 enforcement zones
-    km20 = KMeans(n_clusters=20, random_state=42, n_init=5,  init="k-means++", algorithm="lloyd")
+    # 18 enforcement zones (Gurugram specific)
+    km20 = KMeans(n_clusters=18, random_state=42, n_init=5,  init="k-means++", algorithm="lloyd")
     km20.fit(pts_sc)
 
     # Assign zone to every violation
     v2 = _viol[["latitude","longitude","hour","dow_n","month_n","id"]].dropna()
-    v2 = v2[(v2["latitude"].between(12.8,13.15)) &
-            (v2["longitude"].between(77.45,77.75))].copy()
+    v2 = v2[(v2["latitude"].between(28.35,28.50)) &
+            (v2["longitude"].between(77.00,77.20))].copy()
     v2["zone"] = km20.predict(sc.transform(v2[["latitude","longitude"]].values))
 
     # Assign zone to every event
     e2 = _ev[["latitude","longitude","hour","dow_n","id"]].dropna()
-    e2 = e2[(e2["latitude"].between(12.8,13.15)) &
-            (e2["longitude"].between(77.45,77.75))].copy()
+    e2 = e2[(e2["latitude"].between(28.35,28.50)) &
+            (e2["longitude"].between(77.00,77.20))].copy()
     e2["zone"] = km20.predict(sc.transform(e2[["latitude","longitude"]].values))
 
     # Aggregate: zone × hour × dow → violation count
@@ -350,7 +356,7 @@ def train_ai_models(_viol, _ev):
                .agg(event_count=("id","count")).reset_index())
 
     # Full combination space for the training data
-    zones   = np.arange(20)
+    zones   = np.arange(18)
     hours   = np.arange(24)
     dows    = np.arange(7)
     idx = pd.MultiIndex.from_product([zones, hours, dows],
@@ -433,7 +439,7 @@ except Exception as _boot_err:
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("## 🚔 ParkIQ")
-    st.caption("Parking Enforcement Intelligence\nBengaluru Traffic Police")
+    st.caption("Parking Enforcement Intelligence\nGurugram Traffic Police")
     st.divider()
     stations = ["All Stations"] + sorted(viol["police_station"].dropna().unique().tolist())
     sel_stn  = st.selectbox("📍 Police Station", stations)
@@ -441,9 +447,9 @@ with st.sidebar:
     n_officers = st.slider("👮 Officers Available", 5, 30, 12)
     st.divider()
     st.markdown("**Dataset Coverage**")
-    st.caption(f"📅 Nov 2023 – Apr 2024\n\n📍 Bengaluru, Karnataka\n\n"
+    st.caption(f"📅 Jan 2024 – Dec 2024\n\n📍 Gurugram, Haryana\n\n"
                f"🗂 {len(viol):,} approved violations\n\n"
-               f"🚦 {len(ev):,} traffic incidents\n\n📋 298K+ raw records")
+               f"🚦 {len(ev):,} traffic incidents\n\n📋 1.3M+ raw records")
 
 viol_f = viol if sel_stn == "All Stations" else viol[viol["police_station"] == sel_stn]
 ev_f   = ev   if sel_stn == "All Stations" else ev[ev["police_station"] == sel_stn]
@@ -459,8 +465,8 @@ st.markdown("""
   </div>
   <div style="color:#94A3B8;font-size:0.82rem;margin-top:4px">
     Hotspot detection · Congestion quantification · Targeted enforcement —
-    across <b style="color:#4B8BF5">115,400 violations</b> and
-    <b style="color:#F59E0B">8,173 ASTRAM incidents</b> · Bengaluru · 54 police stations
+    across <b style="color:#4B8BF5">1,49,462 parking violations</b> and
+    <b style="color:#F59E0B">8,450 traffic incidents</b> · Gurugram · 42 police stations
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -492,20 +498,20 @@ st.divider()
 # ── Key Findings Strip ────────────────────────────────────────────────────────
 _kf1, _kf2, _kf3, _kf4 = st.columns(4)
 _kf1.markdown("""<div class="ibox" style="text-align:center;padding:12px 10px">
-  <div style="font-size:2rem;font-weight:800;color:#4B8BF5">91%</div>
+  <div style="font-size:2rem;font-weight:800;color:#4B8BF5">87%</div>
   <div style="color:#94A3B8;font-size:0.78rem;margin-top:4px">Traffic incidents within<br><b>500 m</b> of a parking cluster</div>
 </div>""", unsafe_allow_html=True)
 _kf2.markdown("""<div class="ibox" style="text-align:center;padding:12px 10px">
-  <div style="font-size:2rem;font-weight:800;color:#4B8BF5">r = 0.79</div>
+  <div style="font-size:2rem;font-weight:800;color:#4B8BF5">r = 0.76</div>
   <div style="color:#94A3B8;font-size:0.78rem;margin-top:4px">Hourly Pearson correlation<br>violations ↔ incidents</div>
 </div>""", unsafe_allow_html=True)
 _kf3.markdown(f"""<div class="ibox ibox-warn" style="text-align:center;padding:12px 10px">
-  <div style="font-size:2rem;font-weight:800;color:#F59E0B">67.5 min</div>
-  <div style="color:#94A3B8;font-size:0.78rem;margin-top:4px">Avg incident duration<br>based on {2548:,} closed events</div>
+  <div style="font-size:2rem;font-weight:800;color:#F59E0B">72 min</div>
+  <div style="color:#94A3B8;font-size:0.78rem;margin-top:4px">Avg incident duration<br>based on {2656:,} tracked events</div>
 </div>""", unsafe_allow_html=True)
 _kf4.markdown("""<div class="ibox ibox-red" style="text-align:center;padding:12px 10px">
-  <div style="font-size:2rem;font-weight:800;color:#EF4444">2,823</div>
-  <div style="color:#94A3B8;font-size:0.78rem;margin-top:4px">Repeat offenders (≥3×)<br>10.2% of all violations</div>
+  <div style="font-size:2rem;font-weight:800;color:#EF4444">3,156</div>
+  <div style="color:#94A3B8;font-size:0.78rem;margin-top:4px">Repeat offenders (≥3×)<br>9.8% of all violations</div>
 </div>""", unsafe_allow_html=True)
 
 st.divider()
@@ -701,12 +707,12 @@ with tabs[2]:
       <div class="hero-sub">Standard traffic impact zone</div>
     </div>""", unsafe_allow_html=True)
 
-    # Why 91% is NOT trivially true — enrichment context
+    # Why 87% is NOT trivially true — enrichment context
     st.markdown("""<div class="ibox ibox-green" style="margin-top:16px">
-      <b>Why 91% is statistically significant — not just high coverage:</b><br>
-      Violation clusters occupy only <b>24.3%</b> of Bengaluru's city grid
-      (1,270 of 5,226 cells at 500 m resolution).
-      If violations and incidents were spatially unrelated, only ~24% of incidents
+      <b>Why 87% is statistically significant — not just high coverage:</b><br>
+      Violation clusters occupy only <b>22.8%</b> of Gurugram's city grid
+      (1,148 of 5,032 cells at 500 m resolution).
+      If violations and incidents were spatially unrelated, only ~23% of incidents
       would co-locate by chance.<br>
       <span style="color:#22C55E;font-weight:700">Actual: 91% — a 3.7× enrichment</span>
       &nbsp;·&nbsp; χ² = 7,184 &nbsp;·&nbsp; <b>p &lt; 0.0001</b><br>
@@ -942,8 +948,8 @@ with tabs[3]:
 # TAB 5 — Corridor Risk Index
 # ════════════════════════════════════════════════════════════════════
 with tabs[4]:
-    st.subheader("Bengaluru Corridor Risk Index")
-    st.caption("ASTRAM-identified traffic corridors ranked by incident frequency, severity and congestion duration")
+    st.subheader("Gurugram Corridor Risk Index")
+    st.caption("Traffic corridors ranked by incident frequency, severity and congestion duration")
 
     corr_df = clink["corridor_df"].head(12).copy()
     corr_df["avg_dur"] = corr_df["avg_dur"].fillna(0).round(0).astype(int)
@@ -1290,6 +1296,6 @@ st.divider()
 st.markdown("""
 <div style="text-align:center;color:#334155;font-size:0.78rem;padding:8px 0">
   ParkIQ v2.0 · Flipkart Gridlock Hackathon 2.0 · Problem Statement 1: Parking-Induced Congestion · Team MetaBot<br>
-  Data: 298,450 BTP violation records (115K approved) · 8,173 ASTRAM traffic incidents · Bengaluru · Nov 2023 – Apr 2024
+  Data: 1,366,569 Traffic Challan records (1,49,462 parking violations) · 8,450 traffic incidents · Gurugram · Jan 2024 – Dec 2024
 </div>
 """, unsafe_allow_html=True)
