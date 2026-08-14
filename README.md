@@ -27,6 +27,13 @@
 
 ## Dataset
 
+| Source | Records | Period |
+|--------|---------|--------|
+| Gurugram Traffic Challans | 1,366,569 raw → **1,49,462 parking violations** | Jan 2024 – Dec 2024 |
+| Traffic Congestion Incidents | **8,450 incidents tracked** | Jan 2024 – Dec 2024 |
+
+Both datasets cover **42 Gurugram police stations** with GPS coordinates.
+
 ---
 
 ## Dashboard — 8 Tabs
@@ -40,7 +47,7 @@
 | 🛣️ Corridor Risk | 18 major corridors ranked by risk index | Road-level targeting |
 | 🚓 Enforcement Plan | Smart Patrol Advisor · officer allocation map | Targeted deployment |
 | 🔁 Repeat Offenders | 3,156 vehicles with 3+ violations | Predictive enforcement |
-| 🤖 AI Predictions | RF (AUC 0.905) · K-Means zones · Isolation Forest anomalies | AI layer |
+| 🤖 AI Predictions | RF (AUC 0.898) · K-Means zones · Isolation Forest anomalies | AI layer |
 
 ---
 
