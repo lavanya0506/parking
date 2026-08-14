@@ -216,6 +216,24 @@ def load_events():
 @st.cache_resource(show_spinner="Computing junction priorities…")
 def compute_priority(_viol):
     junc = _viol[_viol["junction_clean"] != "No Junction"]
+    
+    # Handle empty junction data
+    if len(junc) == 0:
+        return pd.DataFrame({
+            "junction_clean": [],
+            "count": [],
+            "lat": [],
+            "lon": [],
+            "police_stn": [],
+            "avg_sev": [],
+            "peak_count": [],
+            "priority": [],
+            "risk": [],
+            "near_metro": [],
+            "near_commercial": [],
+            "zone_type": []
+        })
+    
     grp = junc.groupby("junction_clean").agg(
         count     = ("id",             "count"),
         lat       = ("latitude",       "mean"),
@@ -228,9 +246,19 @@ def compute_priority(_viol):
     grp["priority"] = (0.6 * grp["count"] / grp["count"].max() +
                        0.25 * grp["peak_count"] / (grp["count"] + 1) +
                        0.15 * grp["avg_sev"] / grp["avg_sev"].max())
-    grp["priority"] = (grp["priority"] - grp["priority"].min()) / (grp["priority"].max() - grp["priority"].min())
-    grp["risk"] = pd.qcut(grp["priority"], q=[0, 0.50, 0.85, 1.0],
-                           labels=["🟢 LOW", "🟡 MEDIUM", "🔴 HIGH"])
+    grp["priority"] = (grp["priority"] - grp["priority"].min()) / (grp["priority"].max() - grp["priority"].min() + 1e-6)
+    
+    # Handle qcut with duplicates parameter to handle edge cases
+    try:
+        grp["risk"] = pd.qcut(grp["priority"], q=[0, 0.50, 0.85, 1.0],
+                               labels=["🟢 LOW", "🟡 MEDIUM", "🔴 HIGH"],
+                               duplicates='drop')
+    except Exception:
+        # Fallback: use pd.cut instead if qcut fails
+        grp["risk"] = pd.cut(grp["priority"], bins=3,
+                              labels=["🟢 LOW", "🟡 MEDIUM", "🔴 HIGH"],
+                              include_lowest=True)
+    
     # Flag junctions within ~500 m of a metro station (0.0045° ≈ 500 m)
     def _nearest_metro(lat, lon):
         for stn, (slat, slon) in METRO_STATIONS.items():
