@@ -506,7 +506,7 @@ daily_hrs  = (len(ev) * max(avg_dur, 60)) / 60 / days_span
 cost_cr    = len(ev) * max(avg_dur, 60) / 60 * 600 * 30 / 1e7  # monthly cost in Crore INR
 
 k1, k2, k3, k4, k5 = st.columns(5)
-high_risk_cnt = int((prio["risk"] == "🔴 HIGH").sum())
+high_risk_cnt = int((prio["risk"] == "🔴 HIGH").sum()) if len(prio) > 0 else 0
 peak_hr = int(viol_f["hour"].mode()[0]) if len(viol_f) else 10
 for col, val, lbl, sub in [
     (k1, f"{len(viol_f):,}",     "Violations Analysed",   "✅ Approved records"),
@@ -663,7 +663,7 @@ with tabs[1]:
         vtcnt = (viol_f["primary_violation"].value_counts()
                  .head(6).reset_index()
                  .rename(columns={"primary_violation":"Type","count":"Count"}))
-        vtcnt["Type"] = vtcnt["Type"].str.replace("PARKING","PKG",regex=False)
+        vtcnt["Type"] = vtcnt["Type"].astype(str).str.replace("PARKING","PKG",regex=False)
         fig3 = px.bar(vtcnt, x="Count", y="Type", orientation="h",
                       color="Count", color_continuous_scale=["#1E3A5F","#4B8BF5"])
         fig3.update_layout(**_ct(height=260, yaxis=dict(autorange="reversed"),
@@ -700,12 +700,12 @@ with tabs[1]:
     st.dataframe(disp, use_container_width=True, hide_index=True)
     metro_cnt      = int((prio["near_metro"] != "").sum())
     commercial_cnt = int((prio["near_commercial"] != "").sum())
-    both_cnt       = int(prio["zone_type"].str.contains("Metro.*Commercial|Commercial.*Metro", na=False).sum())
+    both_cnt       = int(prio["zone_type"].astype(str).str.contains("Metro.*Commercial|Commercial.*Metro", na=False).sum())
     st.caption(
         f"🚇 {metro_cnt} metro-adjacent · "
         f"🏪 {commercial_cnt} commercial-area · "
         f"🔗 {both_cnt} overlap (metro + commercial) — "
-        f"all three PS spillover categories covered across 167 junctions"
+        f"all three PS spillover categories covered across 145 junctions"
     )
 
 # ════════════════════════════════════════════════════════════════════
@@ -1025,7 +1025,7 @@ with tabs[4]:
     st.divider()
     cause_df = ev["event_cause"].value_counts().head(10).reset_index()
     cause_df.columns = ["Cause","Count"]
-    cause_df["Cause"] = cause_df["Cause"].str.replace("_"," ").str.title()
+    cause_df["Cause"] = cause_df["Cause"].astype(str).str.replace("_"," ").str.title()
     fig_cause = px.bar(cause_df, x="Count", y="Cause", orientation="h",
                        color="Count",
                        color_continuous_scale=["#1E3A5F","#4B8BF5","#EF4444"],
