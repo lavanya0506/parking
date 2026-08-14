@@ -577,7 +577,7 @@ with tabs[0]:
         </div>""", unsafe_allow_html=True)
 
     with c_map:
-        m = folium.Map(location=[12.97, 77.59], zoom_start=12, tiles="CartoDB dark_matter")
+        m = folium.Map(location=[28.46, 77.10], zoom_start=12, tiles="CartoDB dark_matter")
 
         if view in ("Violations Heatmap", "Combined View"):
             samp = viol_f[["latitude","longitude","severity"]].dropna().sample(
@@ -634,7 +634,7 @@ with tabs[1]:
     with c1:
         top_n = st.slider("Top junctions to show", 10, 40, 20)
         top_j = prio.head(top_n).copy()
-        top_j["Junction"] = top_j["junction_clean"].str.replace(r"BTP\d+ - ","",regex=True)
+        top_j["Junction"] = top_j["junction_clean"].astype(str).str.replace(r"BTP\d+ - ","",regex=True)
         fig = px.bar(
             top_j, x="priority", y="Junction", orientation="h",
             color="priority", color_continuous_scale=["#22C55E","#F59E0B","#EF4444"],
@@ -801,7 +801,7 @@ with tabs[2]:
     </div>""", unsafe_allow_html=True)
 
     # Map showing both layers side by side
-    m2 = folium.Map(location=[12.97, 77.59], zoom_start=12, tiles="CartoDB dark_matter")
+    m2 = folium.Map(location=[28.46, 77.10], zoom_start=12, tiles="CartoDB dark_matter")
     samp2 = viol[["latitude","longitude","severity"]].dropna().sample(5000, random_state=1)
     HeatMap(samp2.values.tolist(),
             radius=8, blur=12, min_opacity=0.35,
@@ -1157,7 +1157,7 @@ with tabs[5]:
 
     # Deployment map
     st.markdown("**Deployment Map**")
-    dm = folium.Map(location=[12.97, 77.59], zoom_start=12, tiles="CartoDB dark_matter")
+    dm = folium.Map(location=[28.46, 77.10], zoom_start=12, tiles="CartoDB dark_matter")
     for _, row in prio.head(30).iterrows():
         color = "red" if str(row["risk"]) == "🔴 HIGH" else \
                 "orange" if str(row["risk"]) == "🟡 MEDIUM" else "green"
@@ -1273,7 +1273,7 @@ with tabs[7]:
         sc.inverse_transform(km_s.cluster_centers_), columns=["lat","lon"]
     )
 
-    m_km = folium.Map(location=[12.97, 77.59], zoom_start=12, tiles="CartoDB dark_matter")
+    m_km = folium.Map(location=[28.46, 77.10], zoom_start=12, tiles="CartoDB dark_matter")
     colors_km = ["#EF4444","#F59E0B","#22C55E","#4B8BF5","#A78BFA","#F472B6",
                  "#34D399","#FB923C","#60A5FA","#FBBF24","#6EE7B7","#C4B5FD",
                  "#FCA5A5","#93C5FD","#6B7280"]
